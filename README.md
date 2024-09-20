@@ -3,7 +3,6 @@
 A ready-to-use system for autonomous driving, featuring YOLOv9 for object detection and SAMv2 for road segmentation. Fully integrated with ROS for seamless deployment in robotic systems. Ideal for developers and researchers focused on autonomous vehicle technologies.
 
 ## Features
-
 - **Object Detection:** Utilizes YOLOv9 for real-time, accurate object detection.
 - **Road Segmentation:** Employs SAMv2 for robust and precise road segmentation.
 - **ROS Integration:** Fully integrated with ROS for seamless deployment and easy integration into robotic systems.
