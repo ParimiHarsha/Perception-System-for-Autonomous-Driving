@@ -3,6 +3,8 @@ import sys
 
 import cv2
 import numpy as np
+
+np.float = np.float64
 import ros_numpy
 import rospy
 import torch
@@ -10,6 +12,7 @@ from sam2.build_sam import build_sam2
 from sam2.sam2_image_predictor import SAM2ImagePredictor
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float32MultiArray, MultiArrayDimension
+import time
 
 from road_segmentation.msg import DetectedRoadArea
 
@@ -18,7 +21,13 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 rospy.loginfo(f"Using device: {device}")
 
 # Load SAM2 model
-sam2_checkpoint = "/home/avalocal/Documents/ros_workspace/src/road_segmentation/src/segment-anything-2/checkpoints/sam2_hiera_base_plus.pt"
+
+# Set local path to checkpoints directory
+base_path = os.path.dirname(os.path.abspath(__file__))  # Get the directory of the current script
+checkpoints_dir = os.path.join(base_path, "segment-anything-2", "checkpoints")
+
+sam2_checkpoint = os.path.join(checkpoints_dir, "sam2_hiera_base_plus.pt")
+# sam2_checkpoint = "/home/avalocal/Documents/ros_workspace/src/road_segmentation/src/segment-anything-2/checkpoints/sam2_hiera_base_plus.pt"
 model_cfg = "sam2_hiera_b+.yaml"
 sam2_model = build_sam2(model_cfg, sam2_checkpoint, device=device)
 predictor = SAM2ImagePredictor(sam2_model)
@@ -28,13 +37,17 @@ predictor = SAM2ImagePredictor(sam2_model)
 def process_image(image, publish_image=False):
     rospy.loginfo("Starting image processing function.")
 
+    # Time the conversion and resizing
+    start_total = time.time()
+
     # Convert the image to a torch tensor and move it to the device
+    start_step = time.time()
     image_tensor = torch.from_numpy(image).to(device)
     h_orig, w_orig, _ = image_tensor.shape
     image_resized = cv2.resize(image, (w_orig, h_orig))
     # image_resized = cv2.resize(image, (640, 640))
     image_resized_tensor = torch.from_numpy(image_resized).to(device)
-
+    rospy.loginfo(f"Image conversion and resizing took: {time.time() - start_step} seconds.")
     h_resized, w_resized, _ = image_resized_tensor.shape
 
     # Adjust point coordinates based on resizing
@@ -50,6 +63,7 @@ def process_image(image, publish_image=False):
     input_labels = torch.tensor([1, 1, 1], device=device)
 
     # Predict masks
+    start_step = time.time()
     predictor.set_image(
         image_resized_tensor.cpu().numpy()
     )  # Assuming predictor needs numpy input
@@ -59,19 +73,23 @@ def process_image(image, publish_image=False):
         point_labels=input_labels.cpu().numpy(),
         multimask_output=True,
     )
+    rospy.loginfo(f"Mask prediction took: {time.time() - start_step} seconds.")
     end_time = rospy.Time.now()
     rospy.loginfo(f"Masks predicted with scores: {scores}.")
 
     # Create binary mask
+    start_step = time.time()
     masks_tensor = torch.from_numpy(masks).to(device)
     binary_mask = (masks_tensor.sum(dim=0) > 0).to(torch.uint8)
     binary_mask_np = binary_mask.cpu().numpy()
-    contours, _ = cv2.findContours(binary_mask_np, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+    contours, _ = cv2.findContours(binary_mask_np, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     rospy.loginfo(f"Number of contour points: {sum(array.size for array in contours)}.")
+    rospy.loginfo(f"Binary mask and contour finding took: {time.time() - start_step} seconds.")
 
     # Create contour overlay image if publishing is enabled
     overlay = None
     if publish_image:
+        start_step = time.time()
         contour_overlay = image_resized_tensor.clone().cpu().numpy()
         cv2.drawContours(
             contour_overlay, contours, -1, (255, 0, 0), 2
@@ -91,6 +109,7 @@ def process_image(image, publish_image=False):
             0.2,
             0,
         )
+        
         rospy.loginfo("Overlay created and points drawn.")
 
         # Draw points on the overlay
@@ -107,7 +126,7 @@ def process_image(image, publish_image=False):
     contour_points = [
         float(point) for contour in contours for point in contour.flatten()
     ]
-
+    rospy.loginfo(f"Contour overlay creation took: {time.time() - start_step} seconds.")
     return overlay, contour_points
 
 
@@ -133,7 +152,7 @@ class RoadSegmentation:
         if self.publish_image:
             rospy.loginfo("Publishing overlay image.")
             msg = Image()
-            msg.header.stamp = rospy.Time.now()
+            msg.header.stamp = ros_image.header.stamp
             msg.height, msg.width = overlay.shape[:2]
             msg.encoding = "rgb8"
             msg.data = np.array(overlay).tobytes()

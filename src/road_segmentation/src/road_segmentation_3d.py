@@ -1,5 +1,6 @@
 import message_filters
 import numpy as np
+np.float = np.float64
 import ros_numpy
 import rospy
 import sensor_msgs.point_cloud2 as pc2
@@ -49,7 +50,7 @@ def inverse_rigid_transformation(arr):
     Compute the inverse of a rigid transformation matrix.
     """
     Rt = arr[:3, :3].T
-    tt = -Rt @ arr[:3, 3]
+    tt = -np.dot(Rt, arr[:3, 3])
     return np.vstack((np.column_stack((Rt, tt)), [0, 0, 0, 1]))
 
 
@@ -95,14 +96,15 @@ class RoadSegmentation3d:
         self.header = std_msgs.msg.Header()
         self.header.frame_id = "lidar_tc"
 
+        # Set up ApproximateTimeSynchronizer
         ts = message_filters.ApproximateTimeSynchronizer(
             [self.pcdSub, self.segmentation_sub],
-            queue_size=20,
-            slop=0.5,
-            allow_headerless=True,
+            queue_size=10,  # Reduced queue size for faster processing
+            slop=10,  # Adjusted slop for stricter synchronization
+            allow_headerless=True,  # Ensure headers are present
         )
         ts.registerCallback(self.segmentation_callback)
-
+        rospy.loginfo('TimeSynchronizer initialized and callback registered.')
         rospy.spin()
 
     def create_cloud(self, points_3d):
@@ -112,11 +114,13 @@ class RoadSegmentation3d:
         self.header.stamp = rospy.Time.now()
         pointcloud = pc2.create_cloud(self.header, self.fields, points_3d)
         self.segmentation_pub.publish(pointcloud)
+        rospy.loginfo("Published point cloud with %d points.", len(points_3d))
 
     def segmentation_callback(self, msgLidar, msgContours):
         """
         Callback function to process lidar and contour data for road segmentation.
         """
+        rospy.loginfo('Inside callback function.')
         contour_points = np.array(msgContours.RoadArea.data).reshape(-1, 2)
 
         # Convert Lidar point cloud message to numpy array
