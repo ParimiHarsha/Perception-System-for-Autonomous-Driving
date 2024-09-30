@@ -72,7 +72,7 @@ cd ../../..
 ```bash
 cd src/yolov9ros/
 ```
-Download the [trained model](https://drive.google.com/file/d/1UAX-7jSXQJcyRdumn8iXmwjfJxxyC9Tw/view?usp=sharing) here.
+Download the [trained model](https://drive.google.com/file/d/1UAX-7jSXQJcyRdumn8iXmwjfJxxyC9Tw/view?usp=sharing) here. And store it in yolov9ros folder
 
 ### Run the required Road Segmentation Scripts
 
