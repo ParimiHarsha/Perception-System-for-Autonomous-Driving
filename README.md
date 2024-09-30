@@ -14,7 +14,7 @@ A ready-to-use system for autonomous driving, featuring YOLOv9 for object detect
 
 Before installing the Autonomous Driving Perception System, ensure the following prerequisites are met:
 
-- **ROS:** Make sure ROS (Robot Operating System) is installed on your system. For installation instructions, visit the [ROS Wiki](http://wiki.ros.org/ROS/
+- **ROS:** Make sure ROS-Noetic is installed on your system. For installation instructions, visit the [ROS Wiki](http://wiki.ros.org/ROS/
 Installation).
 - **Python:** Python 3.10 or later is required.
 - **Dependencies:** All necessary Python libraries and dependencies are listed in the `environment.yaml` file.
@@ -52,31 +52,46 @@ Install the necessary dependencies for SAMv2 by following the instructions provi
 cd ..
 ```
 
-### Build the ROS Workspace: Use catkin to build the workspace
+### Build the ROS Workspace: Use catkin to build the workspace and source it
 
 ```bash
 catkin build
+source devel/setup.bash
 ```
 
 ### Activate the Conda Environment: Activate the environment specified in the environment.yaml file
 
 ```bash
 conda env create -f environment.yaml
-conda activate <environment-name>
+conda activate perception_env
 ```
 
-### Run the Required Scripts
+### Run the Required Road Segmentation Scripts
 
 First, run the SAMv2Ros.py script:
 
 ```bash
-python road_segmentation/SAMv2Ros.py
+python road_segmentation/src/SAMv2Ros.py
 ```
 
 Then, execute the road_segmentation.3d.py script:
 
 ```bash
-python road_segmentation/road_segmentation.3d.py
+python road_segmentation/src/road_segmentation_3d.py
+```
+
+### Run the required Object Detection Scipts
+
+First, run the yolo_detection_node.py script:
+
+```bash
+python yolov9ros/src/yolo_detection_node.py
+```
+
+Then, execute the transform_and_fuse.py script:
+
+```bash
+python yolov9ros/src/transform_and_fuse.py
 ```
 
 If any additional packages are required during this process, install them as prompted.
