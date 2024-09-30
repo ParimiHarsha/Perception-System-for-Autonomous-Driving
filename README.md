@@ -33,23 +33,32 @@ cd Autonomous-Driving-Perception-System
 ### Navigate to the Road Segmentation Directory
 
 ```bash
-cd road_segmentation
+cd src/road_segmentation/src
 ```
 
 ### Install the SAMv2 Repository
 
-#### Install the SAMv2
+#### Clone and install the SAMv2
 
 ```bash
+git clone https://github.com/facebookresearch/segment-anything-2.git
 cd segment-anything-2 & pip install -e .
 ```
 
-Install the necessary dependencies for SAMv2 by following the instructions provided in the SAMv2 repository.
+#### Download Checkpoints
+
+```bash
+cd checkpoints && \
+./download_ckpts.sh && \
+cd ..
+```
+
+Refer to the [SAMv2 github](https://github.com/facebookresearch/segment-anything-2) README file for more details/issues.
 
 ### Return to the Top-Level Directory
 
 ```bash
-cd ..
+cd ../../..
 ```
 
 ### Build the ROS Workspace: Use catkin to build the workspace and source it
@@ -66,32 +75,24 @@ conda env create -f environment.yaml
 conda activate perception_env
 ```
 
-### Run the Required Road Segmentation Scripts
-
-First, run the SAMv2Ros.py script:
+### Run the required Road Segmentation Scripts
 
 ```bash
-python road_segmentation/src/SAMv2Ros.py
+python src/road_segmentation/src/SAMv2Ros.py
 ```
 
-Then, execute the road_segmentation.3d.py script:
-
 ```bash
-python road_segmentation/src/road_segmentation_3d.py
+python src/road_segmentation/src/road_segmentation_3d.py
 ```
 
 ### Run the required Object Detection Scipts
 
-First, run the yolo_detection_node.py script:
-
 ```bash
-python yolov9ros/src/yolo_detection_node.py
+python src/yolov9ros/src/yolo_detection_node.py
 ```
 
-Then, execute the transform_and_fuse.py script:
-
 ```bash
-python yolov9ros/src/transform_and_fuse.py
+python src/yolov9ros/src/transform_and_fuse.py
 ```
 
 If any additional packages are required during this process, install them as prompted.
@@ -99,10 +100,6 @@ If any additional packages are required during this process, install them as pro
 ## Usage
 
 Once the installation is complete, the system can be deployed within a ROS environment. Use the provided scripts to start the perception modules for object detection and road segmentation. Ensure your ROS nodes are correctly configured and that the necessary topics are being published and subscribed to within your ROS ecosystem.
-
-## Contributing
-
-Contributions to the Autonomous-Driving-Perception-System are welcome. Please ensure that you follow the standard development practices and submit pull requests with detailed descriptions of the changes.
 
 ## License
 
