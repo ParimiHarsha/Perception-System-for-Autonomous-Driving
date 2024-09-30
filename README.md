@@ -30,6 +30,13 @@ git clone https://github.com/ParimiHarsha/Autonomous-Driving-Perception-System.g
 cd Autonomous-Driving-Perception-System
 ```
 
+### Build the ROS Workspace: Use catkin to build the workspace and source it
+
+```bash
+catkin build
+source devel/setup.bash
+```
+
 ### Navigate to the Road Segmentation Directory
 
 ```bash
@@ -41,6 +48,8 @@ cd src/road_segmentation/src
 #### Clone and install the SAMv2
 
 ```bash
+conda create -n "sam" python=3.10
+conda activate sam
 git clone https://github.com/facebookresearch/segment-anything-2.git
 cd segment-anything-2 & pip install -e .
 ```
@@ -61,20 +70,6 @@ Refer to the [SAMv2 github](https://github.com/facebookresearch/segment-anything
 cd ../../..
 ```
 
-### Build the ROS Workspace: Use catkin to build the workspace and source it
-
-```bash
-catkin build
-source devel/setup.bash
-```
-
-### Activate the Conda Environment: Activate the environment specified in the environment.yaml file
-
-```bash
-conda env create -f environment.yaml
-conda activate perception_env
-```
-
 ### Run the required Road Segmentation Scripts
 
 ```bash
@@ -86,6 +81,11 @@ python src/road_segmentation/src/road_segmentation_3d.py
 ```
 
 ### Run the required Object Detection Scipts
+
+```bash
+conda env create -f src/yolov9ros/src/environment.yaml
+conda activate perception_env
+```
 
 ```bash
 python src/yolov9ros/src/yolo_detection_node.py
