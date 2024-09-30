@@ -30,6 +30,7 @@ Example:
 from typing import List
 
 import cv2
+import os
 import numpy as np
 import ros_numpy
 import rospy
@@ -42,30 +43,31 @@ from ultralytics import YOLO
 
 from yolov9ros.msg import BboxCentersClass
 
-# Configuration parameters
-weights: str = (
-    "/home/avalocal/Documents/yolov9_ros/src/yolov9ros/src/runs/detect/train3/weights/best.pt"
-)
-img_size: int = 640
-conf_thres: float = 0.5
-
 # Initialize CUDA device early
-device: torch.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-print("Is CUDA available", torch.cuda.is_available())
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+if device=='cpu': print('Using CPU and not GPU')
 if device != torch.device("cpu"):
     torch.cuda.init()  # Ensure CUDA is initialized early
 
-view_img: bool = True
-write_file: bool = False  # Set this flag to control whether to write the video file
+# Get the paths of the current script and other required files
+base_path = os.path.dirname(os.path.abspath(__file__))
+weights_path = os.path.join(base_path, '..',"best.pt") 
+class_averages_path = os.path.join(base_path, "class_averages.yaml")
+
+# Configuration parameters
+img_size = 640
+conf_thres = 0.4
+view_img = True
+write_file = False  # Set this flag to control whether to write the video file
 
 # Average Class Dimensions
-with open("class_averages.yaml", "r", encoding="utf-8") as file:
+with open(class_averages_path, "r", encoding="utf-8") as file:
     average_dimensions = yaml.safe_load(file)
 
 
 class Detect:
     def __init__(self) -> None:
-        self.model = YOLO(weights).to(device)
+        self.model = YOLO(weights_path).to(device)
         self.model.conf = 0.5
         if device != torch.device("cpu"):
             self.model.half()
@@ -94,16 +96,68 @@ class Detect:
         rospy.on_shutdown(self.cleanup)  # Register cleanup function
         rospy.spin()
 
+    # Add the classify_traffic_light function
+    def classify_traffic_light(self, roi):
+        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        
+        # Define color ranges for yellow, green, red
+        yellow_lower = np.array([20, 100, 100])
+        yellow_upper = np.array([30, 255, 255])
+        
+        green_lower = np.array([40, 50, 50])
+        green_upper = np.array([90, 255, 255])
+        
+        red_lower1 = np.array([0, 100, 100])
+        red_upper1 = np.array([10, 255, 255])
+        red_lower2 = np.array([160, 100, 100])
+        red_upper2 = np.array([180, 255, 255])
+        
+        # Masking
+        yellow_mask = cv2.inRange(hsv, yellow_lower, yellow_upper)
+        green_mask = cv2.inRange(hsv, green_lower, green_upper)
+        red_mask1 = cv2.inRange(hsv, red_lower1, red_upper1)
+        red_mask2 = cv2.inRange(hsv, red_lower2, red_upper2)
+        red_mask = cv2.bitwise_or(red_mask1, red_mask2)
+        
+        # Count the number of pixels for each color
+        yellow_pixels = cv2.countNonZero(yellow_mask)
+        green_pixels = cv2.countNonZero(green_mask)
+        red_pixels = cv2.countNonZero(red_mask)
+        
+        # Determine the color with the maximum number of pixels
+        if yellow_pixels > green_pixels and yellow_pixels > red_pixels:
+            return 'Yellow'
+        elif green_pixels > yellow_pixels and green_pixels > red_pixels:
+            return 'Green'
+        elif red_pixels > yellow_pixels and red_pixels > green_pixels:
+            return 'Red'
+        else:
+            return 'Unknown'
+        
+    # In the Detect class, modify the camera_callback method like this
     def camera_callback(self, data: Image) -> None:
         img: np.ndarray = ros_numpy.numpify(data)  # Image size is (772, 1032, 3)
         img_resized: np.ndarray = cv2.resize(
             img, (img_size, img_size)
         )  # Image resized to (640, 640)
+        img_without_green_box = img_resized.copy()
         img_rgb: np.ndarray = cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB)
 
         # Normalize and prepare the tensor
         img_tensor: torch.Tensor = torch.from_numpy(img_rgb).to(device).float()
         img_tensor = img_tensor.permute(2, 0, 1).unsqueeze(0) / 255.0
+
+        # Define a list of classes to suppress for rural roads
+        suppressed_classes = [
+            "airplane", "boat", "bird", "cat", "dog", "elephant", "bear", "zebra", "giraffe",
+            "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard",
+            "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard",
+            "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl",
+            "banana", "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza",
+            "donut", "cake", "bed", "toilet", "tv", "laptop", "mouse", "remote", "keyboard",
+            "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator", "book",
+            "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush" 
+        ]
 
         with torch.no_grad():
             detections = self.model(img_tensor)[0]
@@ -118,13 +172,35 @@ class Detect:
             filtered_bboxes = bboxes[filtered_indices]
             filtered_class_ids = class_ids[filtered_indices]
             filtered_confidences = confidences[filtered_indices]
-
+    
             for bbox, class_id, conf in zip(
                 filtered_bboxes, filtered_class_ids, filtered_confidences
             ):
                 x1, y1, x2, y2 = bbox
-                cv2.rectangle(img_resized, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                # cv2.rectangle(img_resized, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 label: str = f"{self.names[class_id]}: {conf:.2f}"
+
+                # Suppress irrelevant classes
+                if self.names[class_id] in suppressed_classes:
+                    continue  
+
+                # If the detected object is a traffic light and confidence is greater than 50% 
+                # Then make the bounding box 
+                if self.names[class_id] == "traffic light" and conf > 0.5:
+                    cv2.rectangle(img_resized, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    roi = img_without_green_box[y1:y2, x1:x2]
+                    color = self.classify_traffic_light(roi)
+                    cv2.putText(
+                        img_resized,
+                        color,
+                        (x1, y2 + 20),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6,
+                        (0, 0, 0),  # Black
+                        2,
+                    )
+    
+                cv2.rectangle(img_resized, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 cv2.putText(
                     img_resized,
                     label,

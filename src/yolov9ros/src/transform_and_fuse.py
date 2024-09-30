@@ -19,8 +19,10 @@ Example:
 
 from collections import defaultdict
 
+import os
 import message_filters
 import numpy as np
+np.float=np.float64
 import ros_numpy
 import rospy
 import sensor_msgs.point_cloud2 as pc2
@@ -31,7 +33,7 @@ from derived_object_msgs.msg import ObjectWithCovarianceArray
 from jsk_recognition_msgs.msg import BoundingBox, BoundingBoxArray
 from sensor_msgs.msg import PointCloud2
 from sklearn.cluster import DBSCAN
-from yolov7ros.msg import BboxCentersClass
+from yolov9ros.msg import BboxCentersClass
 
 # Camera intrinsic parameters
 rect = np.array(
@@ -68,15 +70,17 @@ T1 = np.array(
 )
 
 # Point cloud limits
-lim_x, lim_y, lim_z = [2.5, 100], [-10, 10], [-3.5, 5]
-pixel_lim = 10
+lim_x, lim_y, lim_z = [2.5, 100], [-10, 10], [-3.5, 1.5]
+pixel_lim = 20
 
 # Radar Limit Cutoff
-radar_limit = 50  # meters
+radar_limit = 75  # meters
 close_distance_threshold = 7  # meters
 
 # Average Class Dimensions
-with open("class_averages.yaml", "r", encoding="utf-8") as file:
+base_path = os.path.dirname(os.path.abspath(__file__))
+class_averages_path = os.path.join(base_path, "class_averages.yaml")
+with open(class_averages_path, "r", encoding="utf-8") as file:
     average_dimensions = yaml.safe_load(file)
 
 
@@ -85,7 +89,7 @@ def inverse_rigid_transformation(arr):
     Compute the inverse of a rigid transformation matrix.
     """
     Rt = arr[:3, :3].T
-    tt = -Rt @ arr[:3, 3]
+    tt = -np.dot(Rt, arr[:3, 3])
     return np.vstack((np.column_stack((Rt, tt)), [0, 0, 0, 1]))
 
 
@@ -185,7 +189,7 @@ class TransformFuse:
             )[0]
 
             if idx.size > 0:
-                for i in idx:
+                for i in [idx[0]]: # Only publish one object for each detection
                     center_3d.append(
                         [pc_arr_pick[0][i], pc_arr_pick[1][i], pc_arr_pick[2][i], 1]
                     )
@@ -199,7 +203,7 @@ class TransformFuse:
         # Filtering out duplicate camera detections
         unique_camera_indices = []
         if center_3d.size > 0:  # Check if center_3d is empty
-            close_distance_threshold_camera = 0.5
+            close_distance_threshold_camera = 1
             db = DBSCAN(eps=close_distance_threshold_camera, min_samples=1).fit(
                 center_3d[:, :3]
             )
@@ -214,12 +218,10 @@ class TransformFuse:
 
         # Finding matching detections b/w camera and radar
         camera_detections = unique_camera_indices
-        radar_detections = msgRadar.objects
-
+        radar_detections = msgRadar.objects      
         matched_pairs = []
         for i in camera_detections:
             for j, rad_det in enumerate(radar_detections):
-                # cam_position = cam_det[:3]
                 cam_position = center_3d[i][:3]
                 rad_position = np.array(
                     [
@@ -229,7 +231,7 @@ class TransformFuse:
                     ]
                 )
                 distance = np.linalg.norm(cam_position - rad_position)
-                if distance < close_distance_threshold:
+                if rad_position[0]>75 and distance < close_distance_threshold:
                     matched_pairs.append((i, j))
 
         rospy.loginfo(f"Matched pairs: {matched_pairs}")
@@ -261,15 +263,17 @@ class TransformFuse:
         # Add radar objects to bounding box array
         for i, obj in enumerate(msgRadar.objects):  # radar detections
             if i not in [g for f, g in matched_pairs]:
-                bbox = BoundingBox()
-                bbox.header = msgRadar.header
-                bbox.pose.position.x = obj.pose.pose.position.x
-                bbox.pose.position.y = obj.pose.pose.position.y
-                bbox.pose.position.z = obj.pose.pose.position.z
-                bbox.dimensions.x = 1.5
-                bbox.dimensions.y = 1.5
-                bbox.dimensions.z = 1.5
-                bbox_array.boxes.append(bbox)
+                if obj.pose.pose.position.x>75:
+                    bbox = BoundingBox()
+                    bbox.header = msgRadar.header
+                    bbox.pose.position.x = obj.pose.pose.position.x
+                    bbox.pose.position.y = obj.pose.pose.position.y
+                    bbox.pose.position.z = obj.pose.pose.position.z
+                    bbox.dimensions.x = 1.5
+                    bbox.dimensions.y = 1.5
+                    bbox.dimensions.z = 1.5
+                    bbox.label= 9999
+                    bbox_array.boxes.append(bbox)
 
         bbox_array.header.frame_id = msgLidar.header.frame_id
         self.bbox_publish.publish(bbox_array)
