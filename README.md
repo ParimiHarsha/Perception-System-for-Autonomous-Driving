@@ -38,10 +38,10 @@ cd road_segmentation
 
 ### Install the SAMv2 Repository
 
-#### Clone the SAMv2 repository
+#### Install the SAMv2
 
 ```bash
-git clone <SAMv2-repo-url>
+cd segment-anything-2 & pip install -e .
 ```
 
 Install the necessary dependencies for SAMv2 by following the instructions provided in the SAMv2 repository.
