@@ -19,7 +19,7 @@ Installation).
 - **Python:** Python 3.10 or later is required.
 - **Dependencies:** All necessary Python libraries and dependencies are listed in the `environment.yaml` file.
 
-## Installation Steps
+## Installation
 
 ### Clone the Repository
 
@@ -42,8 +42,6 @@ source devel/setup.bash
 ```bash
 cd src/road_segmentation/src
 ```
-
-### Install the SAMv2 Repository
 
 #### Clone and install the SAMv2
 
@@ -69,6 +67,12 @@ Refer to the [SAMv2 github](https://github.com/facebookresearch/segment-anything
 ```bash
 cd ../../..
 ```
+### Download the Trained YOLOv9 model
+
+```bash
+cd src/yolov9ros/
+```
+Download the [trained model](https://drive.google.com/file/d/1UAX-7jSXQJcyRdumn8iXmwjfJxxyC9Tw/view?usp=sharing) here.
 
 ### Run the required Road Segmentation Scripts
 
