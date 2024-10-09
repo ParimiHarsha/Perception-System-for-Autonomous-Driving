@@ -439,6 +439,7 @@ import time
 
 import cv2
 import numpy as np
+np.float = np.float64
 import ros_numpy
 import rospy
 import torch
@@ -456,8 +457,9 @@ rospy.loginfo(f"Using device: {device}")
 # Load SAM2 model
 base_path = os.path.dirname(os.path.abspath(__file__))
 checkpoints_dir = os.path.join(base_path, "segment-anything-2", "checkpoints")
-sam2_checkpoint = os.path.join(checkpoints_dir, "sam2_hiera_base_plus.pt")
-model_cfg = "sam2_hiera_b+.yaml"
+sam2_checkpoint = os.path.join(checkpoints_dir, "sam2_hiera_tiny.pt")
+# model_cfg = "sam2_hiera_b+.yaml"
+model_cfg= "sam2_hiera_t.yaml"
 sam2_model = build_sam2(model_cfg, sam2_checkpoint, device=device)
 predictor = SAM2ImagePredictor(sam2_model)
 
@@ -489,6 +491,7 @@ def process_image(image, publish_image=False, resize_dimensions=None):
     image_tensor = torch.from_numpy(image_resized).to(device)
 
     h_resized, w_resized, _ = image_tensor.shape
+    print(h_resized, w_resized)
     rospy.loginfo(
         f"Image conversion and resizing took: {time.time() - start_step} seconds."
     )
@@ -497,7 +500,7 @@ def process_image(image, publish_image=False, resize_dimensions=None):
     center_x = w_resized * 0.75
 
     # Define points for initial segmentation prompt
-    point_coords = np.array([[300, 700], [500, 700], [700, 700]])
+    point_coords = np.array([[450, 700], [650, 700], [850, 700]])
     point_coords = torch.tensor(
         [
             [int(p[0] * w_resized / w_orig), int(p[1] * h_resized / h_orig)]
@@ -524,7 +527,7 @@ def process_image(image, publish_image=False, resize_dimensions=None):
     masks_tensor = torch.from_numpy(masks).to(device)
     binary_mask = (masks_tensor.sum(dim=0) > 0).to(torch.uint8)
     binary_mask_np = binary_mask.cpu().numpy()
-
+    print(binary_mask_np.shape)
     # Find contours in the binary mask
     contours, _ = cv2.findContours(binary_mask_np, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
 
@@ -571,11 +574,11 @@ def process_image(image, publish_image=False, resize_dimensions=None):
             right_boundary_points.append(point)
 
     # Further classification based on the horizon point
-    for point in contour_points:
-        if point[0] < horizon_point[0]:
-            left_boundary_points.append(point)
-        else:
-            right_boundary_points.append(point)
+    # for point in contour_points:
+    #     if point[0] < horizon_point[0]:
+    #         left_boundary_points.append(point)
+    #     else:
+    #         right_boundary_points.append(point)
 
     # Convert to numpy arrays for further processing
     left_boundary_points = np.array(left_boundary_points)
@@ -599,7 +602,10 @@ def process_image(image, publish_image=False, resize_dimensions=None):
             0.2,
             0,
         )
-
+        for point, label in zip(point_coords.cpu().numpy(), input_labels.cpu().numpy()):
+            cv2.circle(
+                overlay, tuple(point), radius=10, color=(255, 0, 0), thickness=-1
+            )
         # Draw left and right boundary points on the overlay
         for point in left_boundary_points:
             cv2.circle(overlay, tuple(point), radius=3, color=(0, 255, 0), thickness=-2)
@@ -609,43 +615,86 @@ def process_image(image, publish_image=False, resize_dimensions=None):
     return overlay, left_boundary_points, right_boundary_points
 
 
-def classify_boundaries_using_horizontal_bins(
-    contour_points, frame_height, num_bins=50
-):
-    """Classify left and right boundaries using horizontal bins."""
-    if len(contour_points) == 0:
-        return [], []
+# def classify_boundaries_using_horizontal_bins(
+#     contour_points, frame_height, num_bins=50
+# ):
+#     """Classify left and right boundaries using horizontal bins."""
+#     if len(contour_points) == 0:
+#         return [], []
 
-    contour_points = contour_points[contour_points[:, 1] < frame_height]
+#     contour_points = contour_points[contour_points[:, 1] < frame_height]
+#     y_min = contour_points[:, 1].min()
+#     bin_height = (frame_height - y_min) // num_bins
+
+#     left_boundary_points = []
+#     right_boundary_points = []
+
+#     for i in range(num_bins):
+#         y_lower_limit = y_min + i * bin_height
+#         y_upper_limit = y_min + (i + 1) * bin_height
+
+#         bin_points = contour_points[
+#             (contour_points[:, 1] > y_lower_limit)
+#             & (contour_points[:, 1] <= y_upper_limit)
+#         ]
+
+#         if len(bin_points) > 0:
+#             mean_x = bin_points[:, 0].mean()
+#             left_boundary_points.extend(bin_points[bin_points[:, 0] < mean_x])
+#             right_boundary_points.extend(bin_points[bin_points[:, 0] >= mean_x])
+
+#     return left_boundary_points, right_boundary_points
+def classify_boundaries_using_horizontal_bins(contour_points, frame_height, num_bins=50):
+    """
+    Classify left and right boundaries using horizontal bins.
+
+    Args:
+        contour_points (np.ndarray): Contour points of the detected road area.
+        frame_height (int): The height of the image frame.
+        num_bins (int): Number of horizontal bins to create.
+
+    Returns:
+        left_boundary_points (np.ndarray): Points classified as the left boundary.
+        right_boundary_points (np.ndarray): Points classified as the right boundary.
+    """
+    if len(contour_points) == 0:
+        return np.array([]), np.array([])
+    contour_points = contour_points[contour_points[:,1]<frame_height]
+    # Determine the minimum y-coordinate of the contour (top-most point of the road region)
     y_min = contour_points[:, 1].min()
-    bin_height = (frame_height - y_min) // num_bins
+
+    # Calculate the vertical range for binning (from y_min to bottom of the frame)
+    binning_range = frame_height - y_min
+    bin_height = binning_range // num_bins
 
     left_boundary_points = []
     right_boundary_points = []
 
+    # Create horizontal bins from y_min to the bottom of the frame
     for i in range(num_bins):
         y_lower_limit = y_min + i * bin_height
         y_upper_limit = y_min + (i + 1) * bin_height
 
-        bin_points = contour_points[
-            (contour_points[:, 1] > y_lower_limit)
-            & (contour_points[:, 1] <= y_upper_limit)
-        ]
+        # Get points within the current horizontal bin
+        bin_points = contour_points[(contour_points[:, 1] > y_lower_limit) & (contour_points[:, 1] <= y_upper_limit)]
 
         if len(bin_points) > 0:
-            mean_x = bin_points[:, 0].mean()
-            left_boundary_points.extend(bin_points[bin_points[:, 0] < mean_x])
-            right_boundary_points.extend(bin_points[bin_points[:, 0] >= mean_x])
+            # Classify points based on x-coordinate
+            for point in bin_points:
+                x, y = point
+                if x < (bin_points[:, 0].mean()):  # Using the mean x-coordinate as the reference
+                    left_boundary_points.append(point)
+                else:
+                    right_boundary_points.append(point)
 
     return left_boundary_points, right_boundary_points
-
 
 class RoadSegmentation:
     def __init__(self):
         rospy.loginfo("Initializing RoadSegmentation class.")
         self.image_pub = rospy.Publisher("/road_segmentation", Image, queue_size=1)
         self.image_sub = rospy.Subscriber(
-            "/resized/camera_fl/image_color", Image, self.image_callback
+            "/resized/camera_fl/image_color", Image, self.image_callback, queue_size=1
         )
         self.left_boundary_pub = rospy.Publisher(
             "/left_boundary", DetectedRoadArea, queue_size=1

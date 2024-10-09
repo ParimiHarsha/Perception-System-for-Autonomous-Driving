@@ -7,7 +7,7 @@ import sensor_msgs.point_cloud2 as pc2
 import std_msgs.msg
 import torch
 from sensor_msgs.msg import PointCloud2
-
+import time
 from road_segmentation.msg import DetectedRoadArea
 
 # Camera intrinsic parameters
@@ -65,9 +65,9 @@ def inverse_rigid_transformation(arr):
 T_vel_cam = inverse_rigid_transformation(T1)
 
 # Define boundaries and limits
-lim_x = [2.5, 75]
-lim_y = [-15, 15]
-lim_z = [-3.5, 5]
+lim_x = [2.5, 50]
+lim_y = [-10, 10]
+lim_z = [-3.5, 1]
 height, width = 772, 1024
 pixel_lim = 5
 
@@ -118,18 +118,19 @@ class RoadSegmentation3d:
         ts = message_filters.ApproximateTimeSynchronizer(
              [self.pcdSub, self.left_boundary_sub, self.right_boundary_sub],
             queue_size=10,  # Reduced queue size for faster processing
-            slop=10,  # Adjusted slop for stricter synchronization
+            slop=.250,  # Adjusted slop for stricter synchronization
             allow_headerless=True,  # Ensure headers are present
         )
         ts.registerCallback(self.segmentation_callback)
         rospy.loginfo('TimeSynchronizer initialized and callback registered.')
         rospy.spin()
 
-    def create_cloud(self, points_3d, publisher):
+    def create_cloud(self, points_3d, publisher, msgLidar):
         """
         Create and publish a PointCloud2 message from 3D points.
         """
         self.header.stamp = rospy.Time.now()
+        self.header = msgLidar.header
         pointcloud = pc2.create_cloud(self.header, self.fields, points_3d)
         publisher.publish(pointcloud)
         rospy.loginfo("Published point cloud with %d points.", len(points_3d))
@@ -139,7 +140,7 @@ class RoadSegmentation3d:
         """
         Callback function to process lidar and contour data for road segmentation.
         """
-
+        starttime = time.time()
         # Extract left and right boundary points from messages
         left_boundary_points = np.array(msgLeftBoundary.RoadArea.data).reshape(-1, 2)
         right_boundary_points = np.array(msgRightBoundary.RoadArea.data).reshape(-1, 2)
@@ -193,15 +194,16 @@ class RoadSegmentation3d:
 
         # Publish left boundary points
         if left_boundary_3d:
-            self.create_cloud(left_boundary_3d, self.left_boundary_pub)
+            self.create_cloud(left_boundary_3d, self.left_boundary_pub, msgLidar)
             rospy.loginfo(f"Published {len(left_boundary_3d)} points in the left boundary point cloud.")
 
         # Publish right boundary points
         if right_boundary_3d:
-            self.create_cloud(right_boundary_3d, self.right_boundary_pub)
+            self.create_cloud(right_boundary_3d, self.right_boundary_pub, msgLidar)
             rospy.loginfo(f"Published {len(right_boundary_3d)} points in the right boundary point cloud.")
 
-
+        endtime = time.time()
+        print(endtime-starttime)
 
     def crop_pointcloud(self, pointcloud):
         """
