@@ -1,4 +1,4 @@
-# Autonomous-Driving-Perception-System
+# Perception System for Autonomous Driving
 
 A ready-to-use system for autonomous driving, featuring YOLOv9 for object detection and SAMv2 for road segmentation. Fully integrated with ROS for seamless deployment in robotic systems. Ideal for developers and researchers focused on autonomous vehicle technologies.
 
@@ -27,7 +27,7 @@ Start by cloning the repository to your local machine:
 
 ```bash
 git clone https://github.com/ParimiHarsha/Autonomous-Driving-Perception-System.git
-cd Autonomous-Driving-Perception-System
+cd Perception-System-for-Autonomous-Driving
 ```
 
 ### Build the ROS Workspace: Use catkin to build the workspace and source it
