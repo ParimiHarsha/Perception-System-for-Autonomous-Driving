@@ -1,0 +1,5 @@
+<launch>
+  <!-- Launch road segmentation nodes -->
+  <node pkg="road_segmentation" type="SAMv2Ros.py" name="sam" output="screen"/>
+  <node pkg="road_segmentation" type="road_segmentation_3d.py" name="road_segmentation_3d" output="screen"/>
+</launch>
