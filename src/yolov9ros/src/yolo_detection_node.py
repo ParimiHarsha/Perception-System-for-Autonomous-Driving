@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # type: ignore
 """
 YOLO Object Detection Node for ROS
@@ -32,6 +33,7 @@ from typing import List
 import cv2
 import os
 import numpy as np
+np.float = np.float64
 import ros_numpy
 import rospy
 import torch
@@ -45,6 +47,7 @@ from yolov9ros.msg import BboxCentersClass
 
 # Initialize CUDA device early
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+torch.cuda.set_per_process_memory_fraction(0.4, device=torch.device('cuda:0'))  # Limit memory usage to 50%
 if device=='cpu': print('Using CPU and not GPU')
 if device != torch.device("cpu"):
     torch.cuda.init()  # Ensure CUDA is initialized early
@@ -69,15 +72,15 @@ class Detect:
     def __init__(self) -> None:
         self.model = YOLO(weights_path).to(device)
         self.model.conf = 0.5
-        if device != torch.device("cpu"):
-            self.model.half()
+        # if device != torch.device("cpu"):
+        #     self.model.half()
         self.names: List[str] = self.model.names
         self.image_sub = rospy.Subscriber(
             "/resized/camera_fl/image_color",
             Image,
             self.camera_callback,
             queue_size=1,
-            buff_size=2**24,
+            # buff_size=2**24,
         )
         self.image_pub = rospy.Publisher("~published_image", Image, queue_size=1)
         self.bboxInfo_pub = rospy.Publisher("~bboxInfo", BboxCentersClass, queue_size=1)
@@ -144,7 +147,7 @@ class Detect:
         img_rgb: np.ndarray = cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB)
 
         # Normalize and prepare the tensor
-        img_tensor: torch.Tensor = torch.from_numpy(img_rgb).to(device).float()
+        img_tensor: torch.Tensor = torch.from_numpy(img_rgb).to(device,non_blocking=True).float()
         img_tensor = img_tensor.permute(2, 0, 1).unsqueeze(0) / 255.0
 
         # Define a list of classes to suppress for rural roads

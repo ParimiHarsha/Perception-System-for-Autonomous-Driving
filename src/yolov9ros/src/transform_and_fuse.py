@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # type: ignore
 """
 This script transforms 2D bounding box coordinates from image space to 3D lidar space
@@ -22,7 +23,8 @@ from collections import defaultdict
 import os
 import message_filters
 import numpy as np
-np.float=np.float64
+
+np.float = np.float64
 import ros_numpy
 import rospy
 import sensor_msgs.point_cloud2 as pc2
@@ -36,55 +38,23 @@ from sklearn.cluster import DBSCAN
 from yolov9ros.msg import BboxCentersClass
 
 # Camera intrinsic parameters
-# rect = np.array(
-#     [
-#         [1757.3969095, 0.0, 548.469263, 0.0],
-#         [0.0, 1758.613861, 404.160806, 0.0],
-#         [0.0, 0.0, 1.0, 0.0],
-#     ]
-# )
-
-rect = np.array([ [3.5612204509314029e+03/2, 0., 9.9143998670769213e+02/2, 0.],
-       [0, 3.5572532571086072e+03/2, 7.8349772942764150e+02/2, 0.],
-       [0, 0., 1. ,0 ]])
+rect = np.array(
+    [
+        [3.5612204509314029e03 / 2, 0.0, 9.9143998670769213e02 / 2, 0.0],
+        [0, 3.5572532571086072e03 / 2, 7.8349772942764150e02 / 2, 0.0],
+        [0, 0.0, 1.0, 0],
+    ]
+)
 
 # Camera to lidar extrinsic transformation matrix
-# T1 = np.array(
-#     [
-#         [
-#             -0.01286594650077832,
-#             -0.0460667467684005,
-#             0.9988555061983764,
-#             1.343301892280579,
-#         ],
-#         [
-#             -0.9971783142793244,
-#             -0.07329508411852753,
-#             -0.01622467796607624,
-#             0.2386326789855957,
-#         ],
-#         [
-#             0.07395861648032626,
-#             -0.9962457957182222,
-#             -0.04499375025580721,
-#             -0.7371386885643005,
-#         ],
-#         [0.0, 0.0, 0.0, 1.0],
-#     ]
-# )
-
-# T1=np.array([[ -4.8076040039157775e-03, 1.1565175070195832e-02,
-#        9.9992156375854679e-01, 1.3626313209533691e+00],
-#        [-9.9997444266988167e-01, -5.3469003551928074e-03,
-#        -4.7460155553246119e-03, 2.0700573921203613e-02],
-#        [5.2915924636425249e-03, -9.9991882539643562e-01,
-#        1.1590585274754983e-02, -9.1730421781539917e-01], [0., 0., 0., 1.] ])
-T1=np.array([[ -0.0059903, 0.0109995,
-       0.9999216, 1.3626313209533691e+00],
-       [-0.9939376, -0.1098434,
-       -0.0047461, 2.0700573921203613e-02],
-       [0.1097826, -0.9938880,
-       0.0115908, -9.1730421781539917e-01], [0., 0., 0., 1.] ])
+T1 = np.array(
+    [
+        [-0.0059903, 0.0109995, 0.9999216, 1.3626313209533691e00],
+        [-0.9939376, -0.1098434, -0.0047461, 2.0700573921203613e-02],
+        [0.1097826, -0.9938880, 0.0115908, -9.1730421781539917e-01],
+        [0.0, 0.0, 0.0, 1.0],
+    ]
+)
 
 # Point cloud limits
 lim_x, lim_y, lim_z = [2.5, 100], [-10, 10], [-3.5, 1.5]
@@ -206,7 +176,7 @@ class TransformFuse:
             )[0]
 
             if idx.size > 0:
-                for i in [idx[0]]: # Only publish one object for each detection
+                for i in [idx[0]]:  # Only publish one object for each detection
                     center_3d.append(
                         [pc_arr_pick[0][i], pc_arr_pick[1][i], pc_arr_pick[2][i], 1]
                     )
@@ -235,7 +205,7 @@ class TransformFuse:
 
         # Finding matching detections b/w camera and radar
         camera_detections = unique_camera_indices
-        radar_detections = msgRadar.objects      
+        radar_detections = msgRadar.objects
         matched_pairs = []
         for i in camera_detections:
             for j, rad_det in enumerate(radar_detections):
@@ -248,7 +218,7 @@ class TransformFuse:
                     ]
                 )
                 distance = np.linalg.norm(cam_position - rad_position)
-                if rad_position[0]>75 and distance < close_distance_threshold:
+                if rad_position[0] > 75 and distance < close_distance_threshold:
                     matched_pairs.append((i, j))
 
         rospy.loginfo(f"Matched pairs: {matched_pairs}")
@@ -280,7 +250,7 @@ class TransformFuse:
         # Add radar objects to bounding box array
         for i, obj in enumerate(msgRadar.objects):  # radar detections
             if i not in [g for f, g in matched_pairs]:
-                if obj.pose.pose.position.x>75:
+                if obj.pose.pose.position.x > 75:
                     bbox = BoundingBox()
                     bbox.header = msgRadar.header
                     bbox.pose.position.x = obj.pose.pose.position.x
@@ -289,7 +259,7 @@ class TransformFuse:
                     bbox.dimensions.x = 1.5
                     bbox.dimensions.y = 1.5
                     bbox.dimensions.z = 1.5
-                    bbox.label= 9999
+                    bbox.label = 9999
                     bbox_array.boxes.append(bbox)
 
         bbox_array.header.frame_id = msgLidar.header.frame_id
