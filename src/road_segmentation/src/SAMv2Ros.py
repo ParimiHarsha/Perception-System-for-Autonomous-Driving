@@ -3,15 +3,26 @@ import os
 import time
 import cv2
 import numpy as np
-
 np.float = np.float64
 import ros_numpy
 import rospy
 import torch
 from sam2.build_sam import build_sam2
 from sam2.sam2_image_predictor import SAM2ImagePredictor
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CompressedImage
 from road_segmentation.msg import DetectedRoadArea
+from functools import wraps
+
+def timer(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = rospy.Time.now().to_sec()#time.time()
+        result = func(*args, **kwargs)
+        end_time = rospy.Time.now().to_sec()
+        print(f"{func.__name__} executed in {end_time - start_time:.4f} seconds")
+        return result
+    return wrapper
+
 
 # Set device to GPU if available, otherwise use CPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -30,22 +41,20 @@ point_coords = np.array([[550, 700], [650, 700], [750, 700]])
 input_labels = [1, 1, 1]
 MIN_CONTOUR_AREA = 30000.0
 
-
 def process_image(image, publish_image=False):
-    start_time = time.time()
     h_original, w_original = image.shape[:2]
     center_x = int(w_original * 0.75)
 
     # Predict masks using SAM2 model
-    with torch.no_grad():
+    with torch.cuda.amp.autocast():###@torch.no_grad():
         predictor.set_image(image)
         masks, _, _ = predictor.predict(
             point_coords=point_coords, point_labels=input_labels, multimask_output=False
         )
-
-    binary_mask_np = (
-        (torch.from_numpy(masks).sum(dim=0) > 0).to(torch.uint8).cpu().numpy()
-    )
+    binary_mask_np = (masks[0] > 0).astype(np.uint8)
+    # binary_mask_np = (
+    #     (torch.from_numpy(masks).sum(dim=0) > 0).to(torch.uint8).cpu().numpy()
+    # )
     contours, _ = cv2.findContours(binary_mask_np, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
 
     if not contours:
@@ -90,7 +99,7 @@ def process_image(image, publish_image=False):
         right_boundary_points,
         publish_image,
     )
-    print("Callback Time:   ", time.time() - start_time)
+
     return overlay, left_boundary_points, right_boundary_points
 
 
@@ -122,7 +131,6 @@ def classify_boundaries_using_horizontal_bins(
 
     return np.array(left_boundary_points), np.array(right_boundary_points)
 
-
 def create_overlay(
     image, binary_mask_np, left_boundary_points, right_boundary_points, publish_image
 ):
@@ -152,13 +160,14 @@ def create_overlay(
 class RoadSegmentation:
     def __init__(self):
         rospy.loginfo("Initializing RoadSegmentation class.")
-        self.image_pub = rospy.Publisher("/road_segmentation", Image, queue_size=1)
+        self.image_pub = rospy.Publisher("/road_segmentation/compressed", CompressedImage, queue_size=1)
         self.image_sub = rospy.Subscriber(
-            "resized/camera_fl/image_color",
-            Image,
+            "resized/camera_fl/image_color/compressed",
+            CompressedImage,
             self.image_callback,
             queue_size=1,
-            buff_size=2**26,
+            #buff_size=2**26,
+            #tcp_nodelay=True
         )
         self.left_boundary_pub = rospy.Publisher(
             "/left_boundary", DetectedRoadArea, queue_size=1
@@ -166,24 +175,19 @@ class RoadSegmentation:
         self.right_boundary_pub = rospy.Publisher(
             "/right_boundary", DetectedRoadArea, queue_size=1
         )
-        self.publish_image = True
+        self.publish_image = False
 
+    @timer
     def image_callback(self, ros_image):
-        start = time.time()
-        # print('ros image size', sys.getsizeof(ros_image))
-        img = ros_numpy.numpify(ros_image)
-        # print('image size', sys.getsizeof(img))
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        # print('image size rgb', sys.getsizeof(img))
+        print('time delay', ros_image.header.stamp.to_sec() - rospy.Time.now().to_sec() )   
+        # img = ros_numpy.numpify(ros_image.data)
+        # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img = np.fromstring(ros_image.data,np.uint8)
+        img = cv2.imdecode(img, cv2.COLOR_BGR2RGB)        
         overlay, left_boundary, right_boundary = process_image(img, self.publish_image)
 
         if self.publish_image and overlay is not None:
-            msg = Image()
-            msg.header.stamp = ros_image.header.stamp
-            msg.height, msg.width = overlay.shape[:2]
-            msg.encoding = "rgb8"
-            msg.data = overlay.tobytes()
-            self.image_pub.publish(msg)
+            self.publish_image(ros_image, overlay)
 
         # Publish boundary points
         self.publish_boundary(
@@ -192,9 +196,16 @@ class RoadSegmentation:
         self.publish_boundary(
             right_boundary, self.right_boundary_pub, ros_image.header.stamp
         )
-        # print()
-        # print("Laaaag in SAM:  ", msg.header.stamp.to_sec() - time.time())
-        print("Full callback time:  ", start - time.time())
+
+    def publish_image(self, ros_image, overlay):
+        
+        msg = CompressedImage()
+        msg.header.stamp = ros_image.header.stamp
+        #msg.height, msg.width = overlay.shape[:2] 
+        msg.format = "jpeg"
+        #msg.data = overlay.tobytes()
+        msg.data = np.array(cv2.imencode('.jpg', overlay)[1]).tostring()
+        self.image_pub.publish(msg)
 
     def publish_boundary(self, boundary, publisher, stamp):
         boundary_msg = DetectedRoadArea()
@@ -203,11 +214,11 @@ class RoadSegmentation:
             float(point) for point in boundary.flatten()
         ]  # not sure if for point in boundary flatten is neccesary
         publisher.publish(boundary_msg)
-        print("Laaaag in SAM:  ", boundary_msg.header.stamp.to_sec() - time.time())
 
 
 if __name__ == "__main__":
     rospy.init_node("road_segmentation_node", anonymous=False)
+
     RoadSegmentation()
     try:
         rospy.spin()

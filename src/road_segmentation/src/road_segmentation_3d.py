@@ -162,7 +162,8 @@ class RoadSegmentation3D:
         if right_boundary_3d.size > 0:
             self.create_cloud(right_boundary_3d, self.right_boundary_pub, msgLidar)
 
-        rospy.loginfo("Processing time: %.3f seconds", time.time() - starttime)
+        print("Processing time: %.3f seconds", time.time() - starttime)
+        # rospy.loginfo("Processing time: %.3f seconds", time.time() - starttime)
 
     def find_matching_points(
         self,
