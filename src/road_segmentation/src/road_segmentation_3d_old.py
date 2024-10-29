@@ -57,7 +57,8 @@ def inverse_rigid_transformation(arr: np.ndarray) -> np.ndarray:
 T_vel_cam = inverse_rigid_transformation(T1)
 
 # Define boundaries and limits
-lim_x = [2.5, 50]
+# lim_x = [2.5, 50]
+lim_x = [-100, 100]
 lim_y = [-10, 10]
 lim_z = [-3.5, 1]
 pixel_lim = 5
@@ -162,7 +163,8 @@ class RoadSegmentation3D:
         if right_boundary_3d.size > 0:
             self.create_cloud(right_boundary_3d, self.right_boundary_pub, msgLidar)
 
-        rospy.loginfo("Processing time: %.3f seconds", time.time() - starttime)
+        print("Processing time: %.3f seconds", time.time() - starttime)
+        # rospy.loginfo("Processing time: %.3f seconds", time.time() - starttime)
 
     def find_matching_points(
         self,

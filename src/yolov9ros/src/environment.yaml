@@ -118,5 +118,5 @@ dependencies:
     - urllib3==2.2.2
     - wcwidth==0.2.13
     - zipp==3.19.2
-prefix: /home/avalocal/anaconda3/envs/yolov9
+
 
