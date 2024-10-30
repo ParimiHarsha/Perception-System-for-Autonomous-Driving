@@ -128,9 +128,6 @@ class RoadSegmentation3D:
     ):
         """Callback function to process lidar and contour data for road segmentation."""
         starttime = time.time()
-        # print('Camera Lidar Lag = ', (msgLidar.header.stamp-msgLeftBoundary.header.stamp).to_sec())
-        # print('Camera Lag = ', (msgLeftBoundary.header.stamp).to_sec()-time.time())
-        # print('Lidar Lag = ', (msgLidar.header.stamp).to_sec() - time.time())
         # Extract left and right boundary points from messages
         left_boundary_points = np.array(msgLeftBoundary.RoadArea.data).reshape(-1, 2)
         right_boundary_points = np.array(msgRightBoundary.RoadArea.data).reshape(-1, 2)
