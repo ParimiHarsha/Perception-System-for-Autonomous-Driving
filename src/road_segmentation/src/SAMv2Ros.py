@@ -13,6 +13,8 @@ from sam2.sam2_image_predictor import SAM2ImagePredictor
 from sensor_msgs.msg import Image, CompressedImage
 from road_segmentation.msg import DetectedRoadArea
 from functools import wraps
+import message_filters
+from yolov9ros.msg import BboxCentersClass
 
 
 def timer(func):
@@ -57,7 +59,12 @@ def process_image(image, publish_image=False):
             point_coords=point_coords, point_labels=input_labels, multimask_output=False
         )
     binary_mask_np = (masks[0] > 0).astype(np.uint8)
-    contours, _ = cv2.findContours(binary_mask_np, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+    kernel = np.ones((6, 6), np.uint8)
+    dilated_mask = cv2.dilate(binary_mask_np, kernel, iterations=1)
+    # Fill holes in the mask
+    filled_mask = cv2.morphologyEx(dilated_mask, cv2.MORPH_CLOSE, kernel)
+
+    contours, _ = cv2.findContours(filled_mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
 
     if not contours:
         rospy.logwarn("No contours found.")
@@ -183,6 +190,9 @@ class RoadSegmentation:
         self.right_boundary_pub = rospy.Publisher(
             "/right_boundary", DetectedRoadArea, queue_size=1
         )
+        self.yolo_sub = rospy.Subscriber(
+            "/yolo_detection_node/bboxInfo", BboxCentersClass,self.yolo_callback, queue_size=1
+        )
         self.ros_image = None
         self.publish_image = True
         rospy.Timer(rospy.Duration(0.1), self.process_loop)
@@ -190,6 +200,31 @@ class RoadSegmentation:
     @timer
     def callback(self, ros_image):
         self.ros_image = ros_image
+
+    def yolo_callback(self, data):
+        """
+        Callback for YOLO detection results.
+        Extracts bounding boxes from the YOLO detection messages.
+        """
+        # self.detected_objects = [
+        #     (box.xmin, box.ymin, box.xmax, box.ymax) for box in data.bounding_boxes
+        # ]
+        self.detected_objects = [point for point in data.Bboxes]
+        rospy.loginfo(f"Updated YOLO detections: {self.detected_objects}")
+
+    def objects_on_road(objects, road_mask):
+        """
+        Check if any detected objects overlap with the road mask.
+        :param objects: List of bounding boxes [(x_min, y_min, x_max, y_max)].
+        :param road_mask: Binary mask of the road (numpy array).
+        :return: True if any objects overlap with the road mask.
+        """
+        for (x_min, y_min, x_max, y_max) in objects:
+            # Extract the region of interest from the mask
+            roi = road_mask[y_min:y_max, x_min:x_max]
+            if np.any(roi > 0):  # Check if there's overlap
+                return True
+        return False
 
     @timer
     def process_loop(self, event):

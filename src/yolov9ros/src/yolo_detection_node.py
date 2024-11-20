@@ -227,22 +227,52 @@ class Detect:
                 self.video_writer.write(img_resized)
                 rospy.loginfo("Frame written to video")
 
+    # def publish_center_class(self, detections: List[float], stamp: rospy.Time) -> None:
+    #     msg = BboxCentersClass()
+    #     msg.header.stamp = stamp
+    #     msg.CenterClass = []
+    #     for bbox in detections:
+    #         x1, y1, x2, y2, conf, cls = bbox
+    #         if conf > conf_thres:
+    #             x_center: float = (x1 + x2) / 2 * (1032 / 640)
+    #             y_center: float = (y1 + y2) / 2 * (772 / 640)
+    #             point = Point32(x=x_center, y=y_center, z=cls)
+    #             msg.CenterClass.append(point)
+    #             rospy.loginfo(
+    #                 "Appended bounding box center: (%f, %f, %s)",
+    #                 x_center,
+    #                 y_center,
+    #                 average_dimensions[int(cls.item())]["name"],
+    #             )
+    #     self.bboxInfo_pub.publish(msg)
+
     def publish_center_class(self, detections: List[float], stamp: rospy.Time) -> None:
-        msg = BboxCentersClass()
+        msg = BboxCentersClass()  # Update this with the actual message type if needed
         msg.header.stamp = stamp
-        msg.CenterClass = []
+        msg.Bboxes = []  # Adjust the attribute name to store bounding box coordinates
+
         for bbox in detections:
             x1, y1, x2, y2, conf, cls = bbox
             if conf > conf_thres:
-                x_center: float = (x1 + x2) / 2 * (1032 / 640)
-                y_center: float = (y1 + y2) / 2 * (772 / 640)
-                point = Point32(x=x_center, y=y_center, z=cls)
-                msg.CenterClass.append(point)
+                # Scale bounding box back to the original image dimensions
+                x_min = x1 * (1032 / 640)
+                y_min = y1 * (772 / 640)
+                x_max = x2 * (1032 / 640)
+                y_max = y2 * (772 / 640)
+
+                bbox_info = {
+                    "x_min": x_min,
+                    "y_min": y_min,
+                    "x_max": x_max,
+                    "y_max": y_max,
+                    "class_id": int(cls),
+                    "confidence": float(conf)
+                }
+                msg.Bboxes.append(bbox_info)
+
                 rospy.loginfo(
-                    "Appended bounding box center: (%f, %f, %s)",
-                    x_center,
-                    y_center,
-                    average_dimensions[int(cls.item())]["name"],
+                    "Published bounding box: x_min=%f, y_min=%f, x_max=%f, y_max=%f, class_id=%d, confidence=%.2f",
+                    x_min, y_min, x_max, y_max, int(cls), float(conf)
                 )
         self.bboxInfo_pub.publish(msg)
 

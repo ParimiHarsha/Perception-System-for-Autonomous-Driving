@@ -14,7 +14,7 @@ from scipy.spatial import KDTree
 from functools import wraps
 
 # Define calibration and transformation matrices
-rect = np.array(
+proj = np.array(
     [
         [3.5612204509314029e03 / 2, 0.0, 9.9143998670769213e02 / 2, 0.0],
         [0, 3.5572532571086072e03 / 2, 7.8349772942764150e02 / 2, 0.0],
@@ -22,6 +22,11 @@ rect = np.array(
     ]
 )
 
+# proj = np.array([
+#     [3508.080811 / 2, 0.000000, 1061.300000 / 2, 0],
+#     [0.000000, 3543.697510 / 2, 736.416491 / 2, 0],
+#     [0.000000, 0.000000, 1.000000, 0],]
+# )
 T1 = np.array(
     [
         [
@@ -159,7 +164,7 @@ class RoadSegmentation3D:
 
         # Apply transformation and projection
         m1 = torch.matmul(torch.tensor(T_vel_cam), torch.tensor(pc_arr.T))
-        uv1 = torch.matmul(torch.tensor(rect), m1)
+        uv1 = torch.matmul(torch.tensor(proj), m1)
         u, v = (uv1[:2, :] / uv1[2, :]).numpy()
         return pc_arr, u, v
 

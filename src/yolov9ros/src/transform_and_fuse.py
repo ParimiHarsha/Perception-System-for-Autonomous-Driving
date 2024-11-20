@@ -167,13 +167,29 @@ class TransformFuse:
         u, v = uv1[0, :].numpy(), uv1[1, :].numpy()
 
         # Match bounding box centers with point cloud data
-        for point in msgPoint.CenterClass:
+        for point in msgPoint.Bboxes:
+            x_min, y_min = bbox_info["x_min"], bbox_info["y_min"]
+            x_max, y_max = bbox_info["x_max"], bbox_info["y_max"]
+            class_id, confidence = bbox_info["class_id"], bbox_info["confidence"]
+
+            # Calculate center of the bounding box
+            center_x = (x_min + x_max) / 2
+            center_y = (y_min + y_max) / 2
+
+            # Find corresponding points in the point cloud
             idx = np.where(
-                (u + pixel_lim >= point.x)
-                & (u - pixel_lim <= point.x)
-                & (v + pixel_lim >= point.y)
-                & (v - pixel_lim <= point.y)
+                (u + pixel_lim >= center_x)
+                & (u - pixel_lim <= center_x)
+                & (v + pixel_lim >= center_y)
+                & (v - pixel_lim <= center_y)
             )[0]
+
+            # idx = np.where(
+            #     (u + pixel_lim >= point.x)
+            #     & (u - pixel_lim <= point.x)
+            #     & (v + pixel_lim >= point.y)
+            #     & (v - pixel_lim <= point.y)
+            # )[0]
 
             if idx.size > 0:
                 for i in [idx[0]]:  # Only publish one object for each detection
