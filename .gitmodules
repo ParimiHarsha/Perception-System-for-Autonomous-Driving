@@ -1,3 +1,4 @@
 [submodule "src/road_segmentation/src/segment-anything-2"]
 	path = src/road_segmentation/src/segment-anything-2
 	url = https://github.com/facebookresearch/sam2
+
