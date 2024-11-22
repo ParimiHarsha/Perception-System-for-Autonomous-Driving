@@ -35,7 +35,7 @@ from derived_object_msgs.msg import ObjectWithCovarianceArray
 from jsk_recognition_msgs.msg import BoundingBox, BoundingBoxArray
 from sensor_msgs.msg import PointCloud2
 from sklearn.cluster import DBSCAN
-from yolov9ros.msg import BboxCentersClass
+from yolov9_ros.msg import BboxCentersClass
 
 # Camera intrinsic parameters
 rect = np.array(
@@ -146,7 +146,7 @@ class TransformFuse:
 
         Args:
             msgLidar (sensor_msgs.msg.PointCloud2): Lidar point cloud message.
-            msgPoint (yolov7ros.msg.BboxCentersClass): Bounding box centers from image detection.
+            msgPoint (yolov9ros.msg.BboxCentersClass): Bounding box centers from image detection.
             msgRadar (derived_object_msgs.msg.ObjectWithCovarianceArray): Radar objects message.
         """
         rospy.loginfo("Received synchronized messages.")

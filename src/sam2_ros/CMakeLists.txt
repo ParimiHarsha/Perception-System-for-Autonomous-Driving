@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(road_segmentation)
+project(sam2_ros)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -125,7 +125,7 @@ generate_messages(
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES road_segmentation
+#  LIBRARIES sa2_ros
 CATKIN_DEPENDS message_runtime rospy std_msgs sensor_msgs
 #  DEPENDS system_lib
 )

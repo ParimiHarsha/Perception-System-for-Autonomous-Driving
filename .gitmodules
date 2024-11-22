@@ -1,4 +1,7 @@
-[submodule "src/road_segmentation/src/segment-anything-2"]
-	path = src/road_segmentation/src/segment-anything-2
+[submodule "src/sam2_ros/src/segment-anything-2"]
+	path = src/sam2_ros/src/segment-anything-2
 	url = https://github.com/facebookresearch/sam2
 
+[submodule "src/sphereformer_ros/src/SphereFormer"]
+	path = src/sphereformer_ros/src/SphereFormer
+	url = https://github.com/dvlab-research/SphereFormer

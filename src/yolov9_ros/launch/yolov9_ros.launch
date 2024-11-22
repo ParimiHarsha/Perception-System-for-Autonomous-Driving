@@ -1,0 +1,5 @@
+<launch>
+  <!-- Launch YOLOv9 nodes -->
+  <node name="yolo_detection_node" pkg="yolov9_ros" type="yolo_detection_node.py" output="screen"/>
+  <node name="transform_and_fuse" pkg="yolov9_ros" type="transform_and_fuse.py" output="screen"/>
+</launch>

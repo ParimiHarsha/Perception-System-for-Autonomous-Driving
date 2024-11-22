@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import os
-import time
 import cv2
 import numpy as np
 
@@ -8,13 +7,12 @@ np.float = np.float64
 import ros_numpy
 import rospy
 import torch
-from sam2.build_sam import build_sam2
+from sam2.build_sam import build_sam2 #src/sam2_ros/src/segment-anything-2
 from sam2.sam2_image_predictor import SAM2ImagePredictor
 from sensor_msgs.msg import Image, CompressedImage
-from road_segmentation.msg import DetectedRoadArea
+from sam2_ros.msg import DetectedRoadArea
 from functools import wraps
-import message_filters
-from yolov9ros.msg import BboxCentersClass
+from yolov9_ros.msg import BboxCentersClass
 
 
 def timer(func):

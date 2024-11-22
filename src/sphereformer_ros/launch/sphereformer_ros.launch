@@ -1,0 +1,4 @@
+<launch>
+  <!-- Launch sphereformer lidar segmentation node -->
+  <node pkg="sphereformer_ros" type="lidar_segmentation.py" name="sphereformer" output="screen"/>
+</launch>

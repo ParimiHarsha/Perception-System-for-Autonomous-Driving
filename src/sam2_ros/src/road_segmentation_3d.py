@@ -9,7 +9,7 @@ import rospy
 import sensor_msgs.point_cloud2 as pc2
 from sensor_msgs.msg import PointCloud2
 import torch
-from road_segmentation.msg import DetectedRoadArea
+from sam2_ros.msg import DetectedRoadArea
 from scipy.spatial import KDTree
 from functools import wraps
 

@@ -44,7 +44,7 @@ from PIL import Image as PILImage
 from sensor_msgs.msg import Image
 from ultralytics import YOLO
 
-from yolov9ros.msg import BboxCentersClass
+from yolov9_ros.msg import BboxCentersClass
 
 # Initialize CUDA device early
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
