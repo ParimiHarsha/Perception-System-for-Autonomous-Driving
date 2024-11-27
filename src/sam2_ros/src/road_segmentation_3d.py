@@ -52,7 +52,7 @@ T1 = np.array(
 )
 
 # Define limits
-lim_x, lim_y, lim_z, pixel_lim = [2.5, 50], [-10, 10], [-3.5, 1], 5
+lim_x, lim_y, lim_z, pixel_lim = [20, 50], [-10, 10], [-3.5, 1], 5
 
 
 def inverse_rigid_transformation(arr: np.ndarray) -> np.ndarray:

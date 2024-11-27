@@ -43,14 +43,12 @@ from geometry_msgs.msg import Point32
 from PIL import Image as PILImage
 from sensor_msgs.msg import Image
 from ultralytics import YOLO
-
-from yolov9_ros.msg import BboxCentersClass
+from std_msgs.msg import Header
+from yolov9_ros.msg import BboxList, Bbox
 
 # Initialize CUDA device early
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-torch.cuda.set_per_process_memory_fraction(
-    0.4, device=torch.device("cuda:0")
-)  # Limit memory usage to 50%
+torch.cuda.set_per_process_memory_fraction(0.3, device=torch.device("cuda:0"))
 if device == "cpu":
     print("Using CPU and not GPU")
 if device != torch.device("cpu"):
@@ -87,7 +85,8 @@ class Detect:
             # buff_size=2**24,
         )
         self.image_pub = rospy.Publisher("~published_image", Image, queue_size=1)
-        self.bboxInfo_pub = rospy.Publisher("~bboxInfo", BboxCentersClass, queue_size=1)
+        # self.bboxInfo_pub = rospy.Publisher("~bboxInfo", BboxCentersClass, queue_size=1)
+        self.bboxInfo_pub = rospy.Publisher("~bboxInfo", BboxList, queue_size=1)
 
         # Initialize VideoWriter if write_file is True
         if write_file:
@@ -273,11 +272,10 @@ class Detect:
                     2,
                 )
 
-            self.publish_center_class(
+            self.publish_bboxes(
                 detections.boxes.data[filtered_indices],
                 data.header.stamp,
             )
-
             if view_img:
                 self.publish_image(img_resized, data.header.stamp)
 
@@ -286,51 +284,38 @@ class Detect:
                 self.video_writer.write(img_resized)
                 rospy.loginfo("Frame written to video")
 
-    # def publish_center_class(self, detections: List[float], stamp: rospy.Time) -> None:
-    #     msg = BboxCentersClass()
-    #     msg.header.stamp = stamp
-    #     msg.CenterClass = []
-    #     for bbox in detections:
-    #         x1, y1, x2, y2, conf, cls = bbox
-    #         if conf > conf_thres:
-    #             x_center: float = (x1 + x2) / 2 * (1032 / 640)
-    #             y_center: float = (y1 + y2) / 2 * (772 / 640)
-    #             point = Point32(x=x_center, y=y_center, z=cls)
-    #             msg.CenterClass.append(point)
-    #             rospy.loginfo(
-    #                 "Appended bounding box center: (%f, %f, %s)",
-    #                 x_center,
-    #                 y_center,
-    #                 average_dimensions[int(cls.item())]["name"],
-    #             )
-    #     self.bboxInfo_pub.publish(msg)
-
-    def publish_center_class(self, detections: List[float], stamp: rospy.Time) -> None:
-        msg = BboxCentersClass()  # Update this with the actual message type if needed
-        msg.header.stamp = stamp
-        msg.Bboxes = []  # Adjust the attribute name to store bounding box coordinates
+    def publish_bboxes(self, detections: torch.Tensor, stamp: rospy.Time) -> None:
+        # Ensure the detections data is in the expected format
+        msg = BboxList()  # Create an instance of the BboxCentersClass message
+        msg.header = Header()
+        msg.header.stamp = stamp  # Add timestamp from the original ROS message
+        msg.Bboxes = []  # Initialize the list for bounding boxes
 
         for bbox in detections:
-            x1, y1, x2, y2, conf, cls = bbox
-            if conf > conf_thres:
-                # Scale bounding box back to the original image dimensions
+            # Parse detection data
+            x1, y1, x2, y2, conf, cls = bbox  # Convert tensor to list
+
+            if conf > conf_thres:  # Filter detections based on confidence
+                # Scale bounding box coordinates back to the original image dimensions
                 x_min = x1 * (1032 / 640)
                 y_min = y1 * (772 / 640)
                 x_max = x2 * (1032 / 640)
                 y_max = y2 * (772 / 640)
 
-                bbox_info = {
-                    "x_min": x_min,
-                    "y_min": y_min,
-                    "x_max": x_max,
-                    "y_max": y_max,
-                    "class_id": int(cls),
-                    "confidence": float(conf),
-                }
-                msg.Bboxes.append(bbox_info)
+                # Create a BboxCenter message for the bounding box
+                bbox_msg = Bbox()
+                bbox_msg.x_min = x_min
+                bbox_msg.y_min = y_min
+                bbox_msg.x_max = x_max
+                bbox_msg.y_max = y_max
+                bbox_msg.confidence = float(conf)  # Confidence as float
+                bbox_msg.class_id = int(cls)  # Class ID as integer
 
+                msg.Bboxes.append(bbox_msg)  # Append the bbox message to the list
+
+                # Debugging information
                 rospy.loginfo(
-                    "Published bounding box: x_min=%f, y_min=%f, x_max=%f, y_max=%f, class_id=%d, confidence=%.2f",
+                    "Bounding box published: x_min=%.2f, y_min=%.2f, x_max=%.2f, y_max=%.2f, cls=%d, conf=%.2f",
                     x_min,
                     y_min,
                     x_max,
@@ -338,6 +323,8 @@ class Detect:
                     int(cls),
                     float(conf),
                 )
+
+        # Publish the message
         self.bboxInfo_pub.publish(msg)
 
     def publish_image(self, img: np.ndarray, stamp: rospy.Time) -> None:

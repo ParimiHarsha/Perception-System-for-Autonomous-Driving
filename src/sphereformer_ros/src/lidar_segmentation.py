@@ -26,7 +26,9 @@ CHECKPOINT_PATH = os.path.join(SCRIPT_DIR,'SphereFormer/model_semantic_kitti.pth
 
 lim_x, lim_y, lim_z = [3, 80], [-10, 10], [-5, 10]
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+torch.cuda.set_per_process_memory_fraction(
+    0.3, device=torch.device("cuda:0")
+)
 
 def timer(func):
     @wraps(func)

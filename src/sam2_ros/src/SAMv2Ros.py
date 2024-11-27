@@ -30,6 +30,9 @@ def timer(func):
 # Set device to GPU if available, otherwise use CPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 rospy.loginfo(f"Using device: {device}")
+torch.cuda.set_per_process_memory_fraction(
+    0.4, device=torch.device("cuda:0")
+)
 
 # Load SAM2 model
 base_path = os.path.dirname(os.path.abspath(__file__))
@@ -41,7 +44,7 @@ sam2_model = build_sam2(model_cfg, sam2_checkpoint, device=device)
 predictor = SAM2ImagePredictor(sam2_model)
 
 # Define points for initial segmentation prompt
-point_coords = np.array([[450, 700], [550, 700], [650, 700]])
+point_coords = np.array([[350, 700], [550, 700], [650, 700]])
 input_labels = [1, 1, 1]
 MIN_CONTOUR_AREA = 30000.0
 
@@ -188,9 +191,9 @@ class RoadSegmentation:
         self.right_boundary_pub = rospy.Publisher(
             "/right_boundary", DetectedRoadArea, queue_size=1
         )
-        self.yolo_sub = rospy.Subscriber(
-            "/yolo_detection_node/bboxInfo", BboxCentersClass,self.yolo_callback, queue_size=1
-        )
+        # self.yolo_sub = rospy.Subscriber(
+        #     "/yolo_detection_node/bboxInfo", BboxCentersClass,self.yolo_callback, queue_size=1
+        # )
         self.ros_image = None
         self.publish_image = True
         rospy.Timer(rospy.Duration(0.1), self.process_loop)
@@ -199,16 +202,16 @@ class RoadSegmentation:
     def callback(self, ros_image):
         self.ros_image = ros_image
 
-    def yolo_callback(self, data):
-        """
-        Callback for YOLO detection results.
-        Extracts bounding boxes from the YOLO detection messages.
-        """
-        # self.detected_objects = [
-        #     (box.xmin, box.ymin, box.xmax, box.ymax) for box in data.bounding_boxes
-        # ]
-        self.detected_objects = [point for point in data.Bboxes]
-        rospy.loginfo(f"Updated YOLO detections: {self.detected_objects}")
+    # def yolo_callback(self, data):
+    #     """
+    #     Callback for YOLO detection results.
+    #     Extracts bounding boxes from the YOLO detection messages.
+    #     """
+    #     # self.detected_objects = [
+    #     #     (box.xmin, box.ymin, box.xmax, box.ymax) for box in data.bounding_boxes
+    #     # ]
+    #     self.detected_objects = [point for point in data.Bboxes]
+    #     rospy.loginfo(f"Updated YOLO detections: {self.detected_objects}")
 
     def objects_on_road(objects, road_mask):
         """
@@ -218,7 +221,8 @@ class RoadSegmentation:
         :return: True if any objects overlap with the road mask.
         """
         for (x_min, y_min, x_max, y_max) in objects:
-            # Extract the region of interest from the mask
+            x_min, x_max = max(0, x_min), min(road_mask.shape[1], x_max)
+            y_min, y_max = max(0, y_min), min(road_mask.shape[0], y_max)
             roi = road_mask[y_min:y_max, x_min:x_max]
             if np.any(roi > 0):  # Check if there's overlap
                 return True

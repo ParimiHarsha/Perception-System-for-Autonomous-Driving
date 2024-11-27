@@ -35,7 +35,7 @@ from derived_object_msgs.msg import ObjectWithCovarianceArray
 from jsk_recognition_msgs.msg import BoundingBox, BoundingBoxArray
 from sensor_msgs.msg import PointCloud2
 from sklearn.cluster import DBSCAN
-from yolov9_ros.msg import BboxCentersClass
+from yolov9_ros.msg import BboxList
 
 # Camera intrinsic parameters
 rect = np.array(
@@ -61,7 +61,7 @@ lim_x, lim_y, lim_z = [2.5, 100], [-10, 10], [-3.5, 1.5]
 pixel_lim = 20
 
 # Radar Limit Cutoff
-radar_limit = 75  # meters
+radar_limit = 200  # meters
 close_distance_threshold = 7  # meters
 
 # Average Class Dimensions
@@ -118,7 +118,7 @@ class TransformFuse:
             "/lidar_tc/velodyne_points", PointCloud2
         )
         self.sub_image = message_filters.Subscriber(
-            "/yolo_detection_node/bboxInfo", BboxCentersClass, queue_size=1
+            "/yolo_detection_node/bboxInfo", BboxList, queue_size=1
         )
         self.sub_radar = message_filters.Subscriber(
             "/radar_fc/as_tx/objects",
@@ -167,10 +167,10 @@ class TransformFuse:
         u, v = uv1[0, :].numpy(), uv1[1, :].numpy()
 
         # Match bounding box centers with point cloud data
-        for point in msgPoint.Bboxes:
-            x_min, y_min = bbox_info["x_min"], bbox_info["y_min"]
-            x_max, y_max = bbox_info["x_max"], bbox_info["y_max"]
-            class_id, confidence = bbox_info["class_id"], bbox_info["confidence"]
+        for bbox_info in msgPoint.Bboxes:
+            x_min, y_min = bbox_info.x_min, bbox_info.y_min
+            x_max, y_max = bbox_info.x_max, bbox_info.y_max
+            class_id, confidence = bbox_info.class_id, bbox_info.confidence
 
             # Calculate center of the bounding box
             center_x = (x_min + x_max) / 2
@@ -184,19 +184,12 @@ class TransformFuse:
                 & (v - pixel_lim <= center_y)
             )[0]
 
-            # idx = np.where(
-            #     (u + pixel_lim >= point.x)
-            #     & (u - pixel_lim <= point.x)
-            #     & (v + pixel_lim >= point.y)
-            #     & (v - pixel_lim <= point.y)
-            # )[0]
-
             if idx.size > 0:
                 for i in [idx[0]]:  # Only publish one object for each detection
                     center_3d.append(
                         [pc_arr_pick[0][i], pc_arr_pick[1][i], pc_arr_pick[2][i], 1]
                     )
-                    label.append([point.z])
+                    label.append([class_id])
         rospy.loginfo(f"Found {len(center_3d)} camera detections.")
 
         # Publishing the bounding boxes
@@ -266,7 +259,7 @@ class TransformFuse:
         # Add radar objects to bounding box array
         for i, obj in enumerate(msgRadar.objects):  # radar detections
             if i not in [g for f, g in matched_pairs]:
-                if obj.pose.pose.position.x > 75:
+                if obj.pose.pose.position.x > radar_limit:
                     bbox = BoundingBox()
                     bbox.header = msgRadar.header
                     bbox.pose.position.x = obj.pose.pose.position.x
