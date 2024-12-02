@@ -28,10 +28,10 @@ Example:
 
 """
 
+import os
 from typing import List
 
 import cv2
-import os
 import numpy as np
 
 np.float = np.float64
@@ -39,12 +39,12 @@ import ros_numpy
 import rospy
 import torch
 import yaml
-from geometry_msgs.msg import Point32
 from PIL import Image as PILImage
 from sensor_msgs.msg import Image
-from ultralytics import YOLO
 from std_msgs.msg import Header
-from yolov9_ros.msg import BboxList, Bbox
+from ultralytics import YOLO
+
+from yolov9_ros.msg import Bbox, BboxList
 
 # Initialize CUDA device early
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -58,6 +58,7 @@ if device != torch.device("cpu"):
 base_path = os.path.dirname(os.path.abspath(__file__))
 weights_path = os.path.join(base_path, "..", "best.pt")
 class_averages_path = os.path.join(base_path, "class_averages.yaml")
+suppressed_classes_path = os.path.join(base_path, "suppressed_classes.yaml")
 
 # Configuration parameters
 img_size = 640
@@ -69,24 +70,23 @@ write_file = False  # Set this flag to control whether to write the video file
 with open(class_averages_path, "r", encoding="utf-8") as file:
     average_dimensions = yaml.safe_load(file)
 
+with open(suppressed_classes_path, "r", encoding="utf-8") as file:
+    suppressed_classes = yaml.safe_load(file)["suppressed_classes"]
+
 
 class Detect:
     def __init__(self) -> None:
         self.model = YOLO(weights_path).to(device)
         self.model.conf = 0.5
-        # if device != torch.device("cpu"):
-        #     self.model.half()
         self.names: List[str] = self.model.names
         self.image_sub = rospy.Subscriber(
             "/resized/camera_fl/image_color",
             Image,
             self.camera_callback,
             queue_size=1,
-            # buff_size=2**24,
         )
-        self.image_pub = rospy.Publisher("~published_image", Image, queue_size=1)
-        # self.bboxInfo_pub = rospy.Publisher("~bboxInfo", BboxCentersClass, queue_size=1)
-        self.bboxInfo_pub = rospy.Publisher("~bboxInfo", BboxList, queue_size=1)
+        self.image_pub = rospy.Publisher("yolov9/published_image", Image, queue_size=1)
+        self.bboxInfo_pub = rospy.Publisher("yolov9/bboxInfo", BboxList, queue_size=1)
 
         # Initialize VideoWriter if write_file is True
         if write_file:
@@ -140,7 +140,6 @@ class Detect:
         else:
             return "Unknown"
 
-    # In the Detect class, modify the camera_callback method like this
     def camera_callback(self, data: Image) -> None:
         img: np.ndarray = ros_numpy.numpify(data)  # Image size is (772, 1032, 3)
         img_resized: np.ndarray = cv2.resize(
@@ -154,71 +153,6 @@ class Detect:
             torch.from_numpy(img_rgb).to(device, non_blocking=True).float()
         )
         img_tensor = img_tensor.permute(2, 0, 1).unsqueeze(0) / 255.0
-
-        # Define a list of classes to suppress for rural roads
-        suppressed_classes = [
-            "airplane",
-            "boat",
-            "bird",
-            "cat",
-            "dog",
-            "elephant",
-            "bear",
-            "zebra",
-            "giraffe",
-            "backpack",
-            "umbrella",
-            "handbag",
-            "tie",
-            "suitcase",
-            "frisbee",
-            "skis",
-            "snowboard",
-            "sports ball",
-            "kite",
-            "baseball bat",
-            "baseball glove",
-            "skateboard",
-            "surfboard",
-            "tennis racket",
-            "bottle",
-            "wine glass",
-            "cup",
-            "fork",
-            "knife",
-            "spoon",
-            "bowl",
-            "banana",
-            "apple",
-            "sandwich",
-            "orange",
-            "broccoli",
-            "carrot",
-            "hot dog",
-            "pizza",
-            "donut",
-            "cake",
-            "bed",
-            "toilet",
-            "tv",
-            "laptop",
-            "mouse",
-            "remote",
-            "keyboard",
-            "cell phone",
-            "microwave",
-            "oven",
-            "toaster",
-            "sink",
-            "refrigerator",
-            "book",
-            "clock",
-            "vase",
-            "scissors",
-            "teddy bear",
-            "hair drier",
-            "toothbrush",
-        ]
 
         with torch.no_grad():
             detections = self.model(img_tensor)[0]
@@ -238,7 +172,6 @@ class Detect:
                 filtered_bboxes, filtered_class_ids, filtered_confidences
             ):
                 x1, y1, x2, y2 = bbox
-                # cv2.rectangle(img_resized, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 label: str = f"{self.names[class_id]}: {conf:.2f}"
 
                 # Suppress irrelevant classes
@@ -313,17 +246,6 @@ class Detect:
 
                 msg.Bboxes.append(bbox_msg)  # Append the bbox message to the list
 
-                # Debugging information
-                rospy.loginfo(
-                    "Bounding box published: x_min=%.2f, y_min=%.2f, x_max=%.2f, y_max=%.2f, cls=%d, conf=%.2f",
-                    x_min,
-                    y_min,
-                    x_max,
-                    y_max,
-                    int(cls),
-                    float(conf),
-                )
-
         # Publish the message
         self.bboxInfo_pub.publish(msg)
 
@@ -346,5 +268,5 @@ class Detect:
 
 
 if __name__ == "__main__":
-    rospy.init_node("yoloLiveNode")
+    rospy.init_node("YOLOv9")
     Detect()

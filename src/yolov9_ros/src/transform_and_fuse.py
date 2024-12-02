@@ -118,7 +118,7 @@ class TransformFuse:
             "/lidar_tc/velodyne_points", PointCloud2
         )
         self.sub_image = message_filters.Subscriber(
-            "/yolo_detection_node/bboxInfo", BboxList, queue_size=1
+            "/yolov9/bboxInfo", BboxList, queue_size=1
         )
         self.sub_radar = message_filters.Subscriber(
             "/radar_fc/as_tx/objects",
