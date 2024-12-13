@@ -18,9 +18,9 @@ Example:
 """
 
 
+import os
 from collections import defaultdict
 
-import os
 import message_filters
 import numpy as np
 
@@ -31,10 +31,11 @@ import sensor_msgs.point_cloud2 as pc2
 import std_msgs.msg
 import torch
 import yaml
-from derived_object_msgs.msg import ObjectWithCovarianceArray
 from jsk_recognition_msgs.msg import BoundingBox, BoundingBoxArray
+from radar_msgs.msg import RadarTrackArray
 from sensor_msgs.msg import PointCloud2
 from sklearn.cluster import DBSCAN
+
 from yolov9_ros.msg import BboxList
 
 # Camera intrinsic parameters
@@ -61,7 +62,7 @@ lim_x, lim_y, lim_z = [2.5, 100], [-10, 10], [-3.5, 1.5]
 pixel_lim = 20
 
 # Radar Limit Cutoff
-radar_limit = 200  # meters
+radar_limit = 20  # meters
 close_distance_threshold = 7  # meters
 
 # Average Class Dimensions
@@ -121,8 +122,8 @@ class TransformFuse:
             "/yolov9/bboxInfo", BboxList, queue_size=1
         )
         self.sub_radar = message_filters.Subscriber(
-            "/radar_fc/as_tx/objects",
-            ObjectWithCovarianceArray,
+            "/radar_fc/as_tx/radar_tracks",
+            RadarTrackArray,
             queue_size=10,
             tcp_nodelay=True,
         )
@@ -214,18 +215,18 @@ class TransformFuse:
 
         # Finding matching detections b/w camera and radar
         camera_detections = unique_camera_indices
-        radar_detections = msgRadar.objects
+        radar_detections = msgRadar.tracks
         matched_pairs = []
         for i in camera_detections:
             for j, rad_det in enumerate(radar_detections):
                 cam_position = center_3d[i][:3]
-                rad_position = np.array(
-                    [
-                        rad_det.pose.pose.position.x,
-                        rad_det.pose.pose.position.y,
-                        rad_det.pose.pose.position.z,
-                    ]
-                )
+                # Calculate the center of the radar track shape by averaging the points
+                track_shape = rad_det.track_shape.points
+                rad_position = np.array([
+                    np.mean([point.x for point in track_shape]),  # Averaging x-coordinates
+                    np.mean([point.y for point in track_shape]),  # Averaging y-coordinates
+                    np.mean([point.z for point in track_shape])   # Averaging z-coordinates
+                ])
                 distance = np.linalg.norm(cam_position - rad_position)
                 if rad_position[0] > 75 and distance < close_distance_threshold:
                     matched_pairs.append((i, j))
@@ -257,18 +258,27 @@ class TransformFuse:
                 bbox_array.boxes.append(bbox)
 
         # Add radar objects to bounding box array
-        for i, obj in enumerate(msgRadar.objects):  # radar detections
+        for i, obj in enumerate(msgRadar.tracks):  # radar detections
             if i not in [g for f, g in matched_pairs]:
-                if obj.pose.pose.position.x > radar_limit:
+                # Calculate the center of the radar track shape by averaging the points
+                track_shape = obj.track_shape.points  # Assuming 'track_shape' is part of 'obj'
+                rad_position = np.array([
+                    np.mean([point.x for point in track_shape]),  # Averaging x-coordinates
+                    np.mean([point.y for point in track_shape]),  # Averaging y-coordinates
+                    np.mean([point.z for point in track_shape])   # Averaging z-coordinates
+                ])
+                
+                # Apply radar limit check based on x-coordinate of the radar position
+                if rad_position[0] > radar_limit:
                     bbox = BoundingBox()
                     bbox.header = msgRadar.header
-                    bbox.pose.position.x = obj.pose.pose.position.x
-                    bbox.pose.position.y = obj.pose.pose.position.y
-                    bbox.pose.position.z = obj.pose.pose.position.z
-                    bbox.dimensions.x = 1.5
-                    bbox.dimensions.y = 1.5
-                    bbox.dimensions.z = 1.5
-                    bbox.label = 9999
+                    bbox.pose.position.x = rad_position[0]  # Using the computed radar position
+                    bbox.pose.position.y = rad_position[1]
+                    bbox.pose.position.z = rad_position[2]
+                    bbox.dimensions.x = 1.5  # Adjust as needed
+                    bbox.dimensions.y = 1.5  # Adjust as needed
+                    bbox.dimensions.z = 1.5  # Adjust as needed
+                    bbox.label = 9999  # Label for radar detection (could be modified)
                     bbox_array.boxes.append(bbox)
 
         bbox_array.header.frame_id = msgLidar.header.frame_id

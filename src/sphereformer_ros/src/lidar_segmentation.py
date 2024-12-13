@@ -21,14 +21,16 @@ from SphereFormer.util import config
 from visualization_msgs.msg import Marker, MarkerArray
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG_PATH = os.path.join(SCRIPT_DIR, "SphereFormer/config/semantic_kitti/semantic_kitti_unet32_spherical_transformer.yaml")
-CHECKPOINT_PATH = os.path.join(SCRIPT_DIR,'SphereFormer/model_semantic_kitti.pth')
-
-lim_x, lim_y, lim_z = [3, 80], [-10, 10], [-5, 10]
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-torch.cuda.set_per_process_memory_fraction(
-    0.3, device=torch.device("cuda:0")
+CONFIG_PATH = os.path.join(
+    SCRIPT_DIR,
+    "SphereFormer/config/semantic_kitti/semantic_kitti_unet32_spherical_transformer.yaml",
 )
+CHECKPOINT_PATH = os.path.join(SCRIPT_DIR, "SphereFormer/model_semantic_kitti.pth")
+
+lim_x, lim_y, lim_z = [3, 80], [-20, 20], [-5, 10]
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+torch.cuda.set_per_process_memory_fraction(0.3, device=torch.device("cuda:0"))
+
 
 def timer(func):
     @wraps(func)
@@ -62,7 +64,10 @@ class PointCloudInference:
             "/bounding_boxes", MarkerArray, queue_size=1
         )
         rospy.Subscriber(
-            "/lidar_tc/velodyne_points", PointCloud2, self.ros_callback, queue_size=1
+            "/lidar_tc/velodyne_points",
+            PointCloud2,
+            self.ros_callback,
+            queue_size=1,
         )
 
     @timer
@@ -125,13 +130,13 @@ class PointCloudInference:
             return
 
         # Detect and cluster car points
-        car_indices = np.where(output_labels.cpu().numpy() == 0)
-        car_points = seg_points[car_indices]
-        car_points_2d = self._prepare_car_points(car_points)
+        # car_indices = np.where(output_labels.cpu().numpy() == 0)
+        # car_points = seg_points[car_indices]
+        # car_points_2d = self._prepare_car_points(car_points)
 
         # Cluster and create bounding boxes if car points exist
-        bounding_boxes = self._cluster_points(car_points_2d)
-        self.publish_bounding_boxes(bounding_boxes, msg.header)
+        # bounding_boxes = self._cluster_points(car_points_2d)
+        # self.publish_bounding_boxes(bounding_boxes, msg.header)
 
         # Convert labels to colors and create a colored point cloud
         colors = self.label_to_color(output_labels.cpu().numpy())
@@ -207,19 +212,19 @@ class PointCloudInference:
             return np.empty((0, 3))
         return np.array([list(point) for point in car_points[["x", "y", "z"]]])
 
-    def _cluster_points(self, car_points_2d):
-        """Run DBSCAN clustering and create bounding boxes."""
-        if car_points_2d.shape[0] > 0:
-            clustering = DBSCAN(eps=1, min_samples=50).fit(car_points_2d)
-            cluster_labels = clustering.labels_
-            unique_labels = set(cluster_labels)
-            return [
-                ((np.min(cluster_points, axis=0)), (np.max(cluster_points, axis=0)))
-                for label in unique_labels
-                if label != -1
-                for cluster_points in [car_points_2d[np.where(cluster_labels == label)]]
-            ]
-        return []
+    # def _cluster_points(self, car_points_2d):
+    #     """Run DBSCAN clustering and create bounding boxes."""
+    #     if car_points_2d.shape[0] > 0:
+    #         clustering = DBSCAN(eps=1, min_samples=50).fit(car_points_2d)
+    #         cluster_labels = clustering.labels_
+    #         unique_labels = set(cluster_labels)
+    #         return [
+    #             ((np.min(cluster_points, axis=0)), (np.max(cluster_points, axis=0)))
+    #             for label in unique_labels
+    #             if label != -1
+    #             for cluster_points in [car_points_2d[np.where(cluster_labels == label)]]
+    #         ]
+    #     return []
 
     def publish_bounding_boxes(self, bounding_boxes, header):
         """Publish bounding boxes as markers to RViz."""
@@ -288,7 +293,7 @@ class PointCloudInference:
         # Ensure model is on the correct device
         self.model = self.model.to(device)
 
-        with torch.cuda.amp.autocast(enabled=True), torch.no_grad():
+        with torch.cuda.amp.autocast, torch.no_grad():
             output = self.model(sinput, xyz.to(device), batch)
         output_pred = output.argmax(1).view(-1)[inds_reverse]
 

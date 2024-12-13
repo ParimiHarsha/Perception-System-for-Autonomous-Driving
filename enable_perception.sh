@@ -20,13 +20,13 @@ gnome-terminal --tab -- bash -c 'source /home/dev/miniconda3/etc/profile.d/conda
                                  echo "Launching SAM2 segmentation..." &&
                                  taskset -c 4,5 roslaunch sam2_ros sam2_ros.launch; exec bash'
 
+# Activate Sphereformer conda environment and launch it in a new terminal tab
 echo "Launching Sphereformer Lidar Segmentation in a new terminal tab..."
 gnome-terminal --tab -- bash -c 'source /home/dev/miniconda3/etc/profile.d/conda.sh && 
                                  echo "Launching Sphereformer conda environment..." &&
                                  conda activate test_lidar1 && 
                                  echo "Launching Sphereformer Lidar segmentation..." &&
                                  taskset -c 6,7,8,9 roslaunch sphereformer_ros sphereformer_ros.launch; exec bash'
-
 
 
 # Wait for all processes to finish

@@ -45,7 +45,7 @@ sam2_model = build_sam2(model_cfg, sam2_checkpoint, device=device)
 predictor = SAM2ImagePredictor(sam2_model)
 
 # Define points for initial segmentation prompt
-point_coords = np.array([[350, 700], [550, 700], [650, 700]])
+point_coords = np.array([[400, 700], [550, 700], [650, 700]])
 input_labels = [1, 1, 1]
 MIN_CONTOUR_AREA = 30000.0
 
@@ -58,7 +58,7 @@ def process_image(image,detected_objects, publish_image=False):
     with torch.cuda.amp.autocast():
         predictor.set_image(image)
         masks, _, _ = predictor.predict(
-            point_coords=point_coords, point_labels=input_labels, multimask_output=True
+            point_coords=point_coords, point_labels=input_labels, multimask_output=False
         )
     
     road_mask = (masks[0] > 0).astype(np.uint8)
@@ -187,10 +187,10 @@ def create_overlay(
 
     for point in point_coords:
         cv2.circle(overlay, tuple(point), radius=10, color=(255, 0, 0), thickness=-1)
-    # for point in left_boundary_points:
-    #     cv2.circle(overlay, tuple(point), radius=3, color=(0, 255, 0), thickness=-2)
-    # for point in right_boundary_points:
-    #     cv2.circle(overlay, tuple(point), radius=3, color=(0, 0, 255), thickness=-2)
+    for point in left_boundary_points:
+        cv2.circle(overlay, tuple(point), radius=3, color=(0, 255, 0), thickness=-2)
+    for point in right_boundary_points:
+        cv2.circle(overlay, tuple(point), radius=3, color=(0, 0, 255), thickness=-2)
 
     return overlay
 
@@ -198,14 +198,7 @@ def create_overlay(
 class RoadSegmentation:
     def __init__(self):
         rospy.loginfo("Initializing RoadSegmentation class.")
-        self.image_pub = rospy.Publisher("/road_segmentation_new", Image, queue_size=1)
-
-        # self.image_sub = rospy.Subscriber(
-        #     "resized/camera_fl/image_color",
-        #     Image,
-        #     self.callback,
-        #     queue_size=1,
-        # )
+        self.image_pub = rospy.Publisher("/road_segmentation", Image, queue_size=1)
 
         self.image_sub = message_filters.Subscriber(
             "resized/camera_fl/image_color",
@@ -236,16 +229,6 @@ class RoadSegmentation:
     def callback(self, ros_image, bboxes):
         self.ros_image = ros_image
         self.detected_objects = [(bbox.x_min, bbox.y_min, bbox.x_max, bbox.y_max) for bbox in bboxes.Bboxes]
-    # def yolo_callback(self, data):
-    #     """
-    #     Callback for YOLO detection results.
-    #     Extracts bounding boxes from the YOLO detection messages.
-    #     """
-    #     # self.detected_objects = [
-    #     #     (box.xmin, box.ymin, box.xmax, box.ymax) for box in data.bounding_boxes
-    #     # ]
-    #     self.detected_objects = [point for point in data.Bboxes]
-    #     # rospy.loginfo(f"Updated YOLO detections: {self.detected_objects}")
 
     def objects_on_road(objects, road_mask):
         """
