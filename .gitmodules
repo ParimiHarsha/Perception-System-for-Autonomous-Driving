@@ -5,6 +5,3 @@
 [submodule "src/sphereformer_ros/src/SphereFormer"]
 	path = src/sphereformer_ros/src/SphereFormer
 	url = https://github.com/dvlab-research/SphereFormer
-[submodule "src/ultrafastv2_ros/src/UltraFast"]
-	path = src/ultrafastv2_ros/src/UltraFast
-	url = https://github.com/ibaiGorordo/Ultrafast-Lane-Detection-Inference-Pytorch-

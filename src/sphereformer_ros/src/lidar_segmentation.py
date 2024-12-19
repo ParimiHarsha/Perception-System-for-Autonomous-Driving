@@ -16,14 +16,14 @@ import torch.utils.data
 from semantic_kitti_ros import SemanticKITTI
 from sensor_msgs.msg import PointCloud2, PointField
 from sklearn.cluster import DBSCAN
-from SphereFormer.model.unet_spherical_transformer import Semantic as Model
 from SphereFormer.util import config
+from SphereFormer_changes.unet_spherical_transformer import Semantic as Model
 from visualization_msgs.msg import Marker, MarkerArray
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(
     SCRIPT_DIR,
-    "SphereFormer/config/semantic_kitti/semantic_kitti_unet32_spherical_transformer.yaml",
+    "SphereFormer_changes/semantic_kitti_unet32_spherical_transformer.yaml",
 )
 CHECKPOINT_PATH = os.path.join(SCRIPT_DIR, "SphereFormer/model_semantic_kitti.pth")
 

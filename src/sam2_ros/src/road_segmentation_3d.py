@@ -4,14 +4,16 @@ import message_filters
 import numpy as np
 
 np.float = np.float64
+from functools import wraps
+
 import ros_numpy
 import rospy
 import sensor_msgs.point_cloud2 as pc2
-from sensor_msgs.msg import PointCloud2
 import torch
-from sam2_ros.msg import DetectedRoadArea
 from scipy.spatial import KDTree
-from functools import wraps
+from sensor_msgs.msg import PointCloud2
+
+from sam2_ros.msg import DetectedRoadArea
 
 # Define calibration and transformation matrices
 proj = np.array(
@@ -22,11 +24,6 @@ proj = np.array(
     ]
 )
 
-# proj = np.array([
-#     [3508.080811 / 2, 0.000000, 1061.300000 / 2, 0],
-#     [0.000000, 3543.697510 / 2, 736.416491 / 2, 0],
-#     [0.000000, 0.000000, 1.000000, 0],]
-# )
 T1 = np.array(
     [
         [

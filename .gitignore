@@ -171,3 +171,4 @@ cython_debug/
 .DS_Store
 # Trained models
 *.pt
+*.pth
