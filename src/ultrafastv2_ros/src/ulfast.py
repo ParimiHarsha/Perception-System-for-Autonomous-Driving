@@ -11,6 +11,8 @@ import torch
 from sensor_msgs.msg import Image
 from UltraFast import ModelType, UltrafastLaneDetector
 
+from src.configs import (CAMERA_TOPIC, LANE_DETECTION_MASK_TOPIC,
+                         LEFT_LANE_TOPIC, RIGHT_LANE_TOPIC)
 from ultrafastv2_ros.msg import LanePoint, LanePoints
 
 
@@ -29,14 +31,14 @@ class LaneDetectionNode:
 
         # ROS setup
         self.image_sub = rospy.Subscriber(
-            "/resized/camera_fl/image_color", Image, self.image_callback
+            CAMERA_TOPIC, Image, self.image_callback
         )
-        self.image_pub = rospy.Publisher("/lane_detection/output", Image, queue_size=1)
+        self.image_pub = rospy.Publisher(LANE_DETECTION_MASK_TOPIC, Image, queue_size=1)
         self.left_lane_boundary_pub = rospy.Publisher(
-            "/lane_detection/current_lane_left_boundary", LanePoints, queue_size=1
+            LEFT_LANE_TOPIC, LanePoints, queue_size=1
         )
         self.right_lane_boundary_pub = rospy.Publisher(
-            "/lane_detection/current_lane_right_boundary", LanePoints, queue_size=1
+            RIGHT_LANE_TOPIC, LanePoints, queue_size=1
         )
 
         rospy.loginfo(f"LaneDetectionNode initialized. Using GPU: {self.use_gpu}")

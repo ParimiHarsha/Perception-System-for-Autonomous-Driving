@@ -8,39 +8,10 @@ import sensor_msgs.point_cloud2 as pc2
 import std_msgs.msg
 from sensor_msgs.msg import PointCloud2
 
+from src.configs import (LEFT_LANE_BOUNDARY_TOPIC, LEFT_LANE_TOPIC,
+                         LIDAR_TOPIC, PROJ, RIGHT_LANE_BOUNDARY_TOPIC,
+                         RIGHT_LANE_TOPIC, T1)
 from ultrafastv2_ros.msg import LanePoints
-
-proj = np.array(
-    [
-        [3.5612204509314029e03 / 2, 0.0, 9.9143998670769213e02 / 2, 0.0],
-        [0, 3.5572532571086072e03 / 2, 7.8349772942764150e02 / 2, 0.0],
-        [0, 0.0, 1.0, 0],
-    ]
-)
-
-T1 = np.array(
-    [
-        [
-            -4.8076040039157775e-03,
-            1.1565175070195832e-02,
-            9.9992156375854679e-01,
-            1.3626313209533691e00,
-        ],
-        [
-            -9.9997444266988167e-01,
-            -5.3469003551928074e-03,
-            -4.7460155553246119e-03,
-            2.0700573921203613e-02,
-        ],
-        [
-            5.2915924636425249e-03,
-            -9.9991882539643562e-01,
-            1.1590585274754983e-02,
-            -9.1730421781539917e-01,
-        ],
-        [0.0, 0.0, 0.0, 1.0],
-    ]
-)
 
 
 def inverse_rigid_transformation(arr):
@@ -66,11 +37,11 @@ class realCoor:
         print("Running the new_lineto3d transformation script\n")
 
         self.left_pcl_pub = rospy.Publisher(
-            "/Left_Line3dPoints", PointCloud2, queue_size=1
+            LEFT_LANE_BOUNDARY_TOPIC, PointCloud2, queue_size=1
         )
         print("Publishing /Left_Line3dPoints\n")
         self.right_pcl_pub = rospy.Publisher(
-            "/Right_Line3dPoints", PointCloud2, queue_size=1
+            RIGHT_LANE_BOUNDARY_TOPIC, PointCloud2, queue_size=1
         )
         print("Publishing /Right_Line3dPoints\n")
 
@@ -89,20 +60,18 @@ class realCoor:
             ),
         ]
 
-        self.pcdSub = message_filters.Subscriber(
-            "/lidar_tc/velodyne_points", PointCloud2
-        )  # /kitti/velo/pointcloud
-        self.lane_pointcloud = PointCloud2()  # rospy.subscriber
-        self.used_pointcloud = PointCloud2()  # rospy.subscriber
+        self.pcdSub = message_filters.Subscriber(LIDAR_TOPIC, PointCloud2)
+        self.lane_pointcloud = PointCloud2()
+        self.used_pointcloud = PointCloud2()
         self.header = std_msgs.msg.Header()
         self.header.frame_id = "lidar_tc"
         pointcloud = []
 
         self.left_pointSub = message_filters.Subscriber(
-            "/lane_detection/current_lane_left_boundary", LanePoints
+            LEFT_LANE_TOPIC, LanePoints
         )
         self.right_pointSub = message_filters.Subscriber(
-            "/lane_detection/current_lane_right_boundary", LanePoints
+            RIGHT_LANE_TOPIC, LanePoints
         )
 
         ts = message_filters.ApproximateTimeSynchronizer(
@@ -117,7 +86,6 @@ class realCoor:
         rospy.spin()
 
     def create_cloud(self, line_3d, which):
-
         if which == "left":
             self.left_pointcloud = pc2.create_cloud(self.header, self.fields, line_3d)
             self.left_pcl_pub.publish(self.left_pointcloud)
@@ -126,9 +94,6 @@ class realCoor:
             self.right_pcl_pub.publish(self.right_pointcloud)
 
     def pcd_callback(self, msgLidar, msgLeftPoint, msgRightPoint):
-        print(
-            "in Callback"
-        )  # This code never prints this in console which means it never goes into the callback
         self.header = msgLidar.header
         if msgLeftPoint.points != [] or msgRightPoint.points != []:
             pc = ros_numpy.numpify(msgLidar)
@@ -138,12 +103,12 @@ class realCoor:
             points[:, 2] = pc["z"]
             points[:, 3] = 1
 
-            pc_arr = self.crop_pointcloud(points)  # to reduce computational expense
+            pc_arr = self.crop_pointcloud(points)
             pc_arr_pick = np.transpose(pc_arr)
 
-            m1 = np.matmul(T_vel_cam, pc_arr_pick)  # 4*N
+            m1 = np.matmul(T_vel_cam, pc_arr_pick)
 
-            uv1 = np.matmul(proj, m1)  # 4*N
+            uv1 = np.matmul(PROJ, m1)
 
             uv1[0, :] = np.divide(uv1[0, :], uv1[2, :])
             uv1[1, :] = np.divide(uv1[1, :], uv1[2, :])

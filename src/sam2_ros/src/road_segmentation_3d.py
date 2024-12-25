@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
+from functools import wraps
+
 import message_filters
 import numpy as np
 
 np.float = np.float64
-from functools import wraps
-
 import ros_numpy
 import rospy
 import sensor_msgs.point_cloud2 as pc2
@@ -14,39 +14,8 @@ from scipy.spatial import KDTree
 from sensor_msgs.msg import PointCloud2
 
 from sam2_ros.msg import DetectedRoadArea
-
-# Define calibration and transformation matrices
-proj = np.array(
-    [
-        [3.5612204509314029e03 / 2, 0.0, 9.9143998670769213e02 / 2, 0.0],
-        [0, 3.5572532571086072e03 / 2, 7.8349772942764150e02 / 2, 0.0],
-        [0, 0.0, 1.0, 0],
-    ]
-)
-
-T1 = np.array(
-    [
-        [
-            -4.8076040039157775e-03,
-            1.1565175070195832e-02,
-            9.9992156375854679e-01,
-            1.3626313209533691e00,
-        ],
-        [
-            -9.9997444266988167e-01,
-            -5.3469003551928074e-03,
-            -4.7460155553246119e-03,
-            2.0700573921203613e-02,
-        ],
-        [
-            5.2915924636425249e-03,
-            -9.9991882539643562e-01,
-            1.1590585274754983e-02,
-            -9.1730421781539917e-01,
-        ],
-        [0.0, 0.0, 0.0, 1.0],
-    ]
-)
+from src.configs import (LEFT_BOUNDARY, LEFT_CONTOUR_TOPIC, LIDAR_TOPIC, PROJ,
+                         RIGHT_BOUNDARY, RIGHT_CONTOUR_TOPIC, T1)
 
 # Define limits
 lim_x, lim_y, lim_z, pixel_lim = [20, 50], [-10, 10], [-3.5, 1], 5
@@ -79,10 +48,10 @@ class RoadSegmentation3D:
 
         # Publishers
         self.left_boundary_pub = rospy.Publisher(
-            "/road_segment_3d/left_boundary", PointCloud2, queue_size=1
+            LEFT_BOUNDARY, PointCloud2, queue_size=1
         )
         self.right_boundary_pub = rospy.Publisher(
-            "/road_segment_3d/right_boundary", PointCloud2, queue_size=1
+            RIGHT_BOUNDARY, PointCloud2, queue_size=1
         )
 
         # Define the point fields
@@ -102,19 +71,17 @@ class RoadSegmentation3D:
         ]
 
         # Subscribers
-        self.pcdSub = message_filters.Subscriber(
-            "/lidar_tc/velodyne_points", PointCloud2
-        )
+        self.sub_lidar = message_filters.Subscriber(LIDAR_TOPIC, PointCloud2)
         self.left_boundary_sub = message_filters.Subscriber(
-            "/left_boundary", DetectedRoadArea
+            LEFT_CONTOUR_TOPIC, DetectedRoadArea
         )
         self.right_boundary_sub = message_filters.Subscriber(
-            "/right_boundary", DetectedRoadArea
+            RIGHT_CONTOUR_TOPIC, DetectedRoadArea
         )
 
         # Synchronize topics
         ts = message_filters.ApproximateTimeSynchronizer(
-            [self.pcdSub, self.left_boundary_sub, self.right_boundary_sub],
+            [self.sub_lidar, self.left_boundary_sub, self.right_boundary_sub],
             queue_size=10,
             slop=0.3,
             allow_headerless=False,
@@ -138,7 +105,7 @@ class RoadSegmentation3D:
     @timer
     def process_loop(self, event):
         if not self.msgLidar or not self.msgLeftBoundary or not self.msgRightBoundary:
-            print("something is missing")
+            print("Some topic is missing")
             return
 
         pc_arr, u, v = self.process_pointcloud(self.msgLidar)
@@ -161,7 +128,7 @@ class RoadSegmentation3D:
 
         # Apply transformation and projection
         m1 = torch.matmul(torch.tensor(T_vel_cam), torch.tensor(pc_arr.T))
-        uv1 = torch.matmul(torch.tensor(proj), m1)
+        uv1 = torch.matmul(torch.tensor(PROJ), m1)
         u, v = (uv1[:2, :] / uv1[2, :]).numpy()
         return pc_arr, u, v
 

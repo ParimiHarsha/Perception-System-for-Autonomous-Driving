@@ -7,16 +7,23 @@ import numpy as np
 np.float = np.float64
 from functools import wraps
 
+import message_filters
 import ros_numpy
 import rospy
 import torch
 from sam2.build_sam import build_sam2
 from sam2.sam2_image_predictor import SAM2ImagePredictor
-from sensor_msgs.msg import CompressedImage, Image
+from sensor_msgs.msg import Image
 
 from sam2_ros.msg import DetectedRoadArea
+from src.configs import (
+    CAMERA_TOPIC,
+    LEFT_CONTOUR_TOPIC,
+    RIGHT_CONTOUR_TOPIC,
+    SEGMENTATION_MASK_TOPIC,
+    YOLO_BBOX_TOPIC,
+)
 from yolov9_ros.msg import BboxList
-import message_filters
 
 
 def timer(func):
@@ -50,7 +57,7 @@ input_labels = [1, 1, 1]
 MIN_CONTOUR_AREA = 30000.0
 
 
-def process_image(image,detected_objects, publish_image=False):
+def process_image(image, detected_objects, publish_image=False):
     h_original, w_original = image.shape[:2]
     center_x = int(w_original * 0.75)
 
@@ -60,7 +67,7 @@ def process_image(image,detected_objects, publish_image=False):
         masks, _, _ = predictor.predict(
             point_coords=point_coords, point_labels=input_labels, multimask_output=False
         )
-    
+
     road_mask = (masks[0] > 0).astype(np.uint8)
     # Create a unified mask for road and bounding boxes
     unified_mask = road_mask.copy()
@@ -85,7 +92,9 @@ def process_image(image,detected_objects, publish_image=False):
 
     # Fill gaps in the road mask
     # road_mask_filled = cv2.morphologyEx(road_mask_dilated, cv2.MORPH_CLOSE, kernel)
-    contours, _ = cv2.findContours(road_mask_cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    contours, _ = cv2.findContours(
+        road_mask_cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE
+    )
 
     # # Dilate object mask to cover edges
     # kernel = np.ones((6, 6), np.uint8)
@@ -116,10 +125,11 @@ def process_image(image,detected_objects, publish_image=False):
     contour_points = np.array(road_contour).reshape(-1, 2)
     horizon_point = contour_points[np.argmin(contour_points[:, 1])]
 
-    left_boundary_points, right_boundary_points = (
-        classify_boundaries_using_horizontal_bins(
-            contour_points[contour_points[:, 1] < center_x], h_original
-        )
+    (
+        left_boundary_points,
+        right_boundary_points,
+    ) = classify_boundaries_using_horizontal_bins(
+        contour_points[contour_points[:, 1] < center_x], h_original
     )
 
     for point in contour_points[contour_points[:, 1] >= center_x]:
@@ -198,27 +208,32 @@ def create_overlay(
 class RoadSegmentation:
     def __init__(self):
         rospy.loginfo("Initializing RoadSegmentation class.")
-        self.image_pub = rospy.Publisher("/road_segmentation", Image, queue_size=1)
+        self.image_pub = rospy.Publisher(SEGMENTATION_MASK_TOPIC, Image, queue_size=1)
 
         self.image_sub = message_filters.Subscriber(
-            "resized/camera_fl/image_color",
+            CAMERA_TOPIC,
             Image,
             queue_size=1,
         )
         self.yolo_sub = message_filters.Subscriber(
-            "/yolov9/bboxInfo", BboxList, queue_size=1
+            YOLO_BBOX_TOPIC, BboxList, queue_size=1
         )
         # Time synchronizer for lidar, image, and radar data
         ts = message_filters.ApproximateTimeSynchronizer(
-            [self.image_sub, self.yolo_sub,], 15, 0.4
+            [
+                self.image_sub,
+                self.yolo_sub,
+            ],
+            15,
+            0.4,
         )
         ts.registerCallback(self.callback)
 
         self.left_boundary_pub = rospy.Publisher(
-            "/left_boundary", DetectedRoadArea, queue_size=1
+            LEFT_CONTOUR_TOPIC, DetectedRoadArea, queue_size=1
         )
         self.right_boundary_pub = rospy.Publisher(
-            "/right_boundary", DetectedRoadArea, queue_size=1
+            RIGHT_CONTOUR_TOPIC, DetectedRoadArea, queue_size=1
         )
 
         self.ros_image = None
@@ -228,9 +243,11 @@ class RoadSegmentation:
 
     def callback(self, ros_image, bboxes):
         self.ros_image = ros_image
-        self.detected_objects = [(bbox.x_min, bbox.y_min, bbox.x_max, bbox.y_max) for bbox in bboxes.Bboxes]
+        self.detected_objects = [
+            (bbox.x_min, bbox.y_min, bbox.x_max, bbox.y_max) for bbox in bboxes.Bboxes
+        ]
 
-    def objects_on_road(objects, road_mask):
+    def objects_on_road(self, objects, road_mask):
         """
         Check if any detected objects overlap with the road mask.
         :param objects: List of bounding boxes [(x_min, y_min, x_max, y_max)].
@@ -255,7 +272,11 @@ class RoadSegmentation:
     def image_callback(self):
         img = ros_numpy.numpify(self.ros_image)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        overlay, left_boundary, right_boundary = process_image(img,self.detected_objects,  self.publish_image, )
+        overlay, left_boundary, right_boundary = process_image(
+            img,
+            self.detected_objects,
+            self.publish_image,
+        )
 
         if self.publish_image and overlay is not None:
             self.publish_image_topic(self.ros_image, overlay)

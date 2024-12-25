@@ -1,3 +1,4 @@
 <launch>
     <node pkg="ultrafastv2_ros" type="ulfast.py" name="lane_detection_node" output="screen"/>
+    <node pkg="ultrafastv2_ros" type="lineto3d.py" name="lane_transformation_node" output="screen"/>
 </launch>

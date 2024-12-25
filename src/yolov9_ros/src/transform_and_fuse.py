@@ -23,8 +23,6 @@ from collections import defaultdict
 
 import message_filters
 import numpy as np
-
-np.float = np.float64
 import ros_numpy
 import rospy
 import sensor_msgs.point_cloud2 as pc2
@@ -36,26 +34,9 @@ from radar_msgs.msg import RadarTrackArray
 from sensor_msgs.msg import PointCloud2
 from sklearn.cluster import DBSCAN
 
+from src.configs import (FUSED_BBOX_TOPIC, LIDAR_TOPIC, PROJ,
+                         RADAR_TRACKS_TOPIC, T1, YOLO_BBOX_TOPIC)
 from yolov9_ros.msg import BboxList
-
-# Camera intrinsic parameters
-rect = np.array(
-    [
-        [3.5612204509314029e03 / 2, 0.0, 9.9143998670769213e02 / 2, 0.0],
-        [0, 3.5572532571086072e03 / 2, 7.8349772942764150e02 / 2, 0.0],
-        [0, 0.0, 1.0, 0],
-    ]
-)
-
-# Camera to lidar extrinsic transformation matrix
-T1 = np.array(
-    [
-        [-0.0059903, 0.0109995, 0.9999216, 1.3626313209533691e00],
-        [-0.9939376, -0.1098434, -0.0047461, 2.0700573921203613e-02],
-        [0.1097826, -0.9938880, 0.0115908, -9.1730421781539917e-01],
-        [0.0, 0.0, 0.0, 1.0],
-    ]
-)
 
 # Point cloud limits
 lim_x, lim_y, lim_z = [2.5, 100], [-10, 10], [-3.5, 1.5]
@@ -95,7 +76,7 @@ class TransformFuse:
         rospy.loginfo("Initializing TransformFuse node...")
         # Initialize ROS publishers
         self.bbox_publish = rospy.Publisher(
-            "/fused_bbox", BoundingBoxArray, queue_size=1
+            FUSED_BBOX_TOPIC, BoundingBoxArray, queue_size=1
         )
 
         # Point field configuration for PointCloud2
@@ -115,14 +96,12 @@ class TransformFuse:
         ]
 
         # Initialize ROS subscribers
-        self.sub_lidar = message_filters.Subscriber(
-            "/lidar_tc/velodyne_points", PointCloud2
-        )
+        self.sub_lidar = message_filters.Subscriber(LIDAR_TOPIC, PointCloud2)
         self.sub_image = message_filters.Subscriber(
-            "/yolov9/bboxInfo", BboxList, queue_size=1
+            YOLO_BBOX_TOPIC, BboxList, queue_size=1
         )
         self.sub_radar = message_filters.Subscriber(
-            "/radar_fc/as_tx/radar_tracks",
+            RADAR_TRACKS_TOPIC,
             RadarTrackArray,
             queue_size=10,
             tcp_nodelay=True,
@@ -160,7 +139,7 @@ class TransformFuse:
         pc_arr = self.crop_pointcloud(points)
         pc_arr_pick = np.transpose(pc_arr)
         m1 = torch.matmul(torch.tensor(T_vel_cam), torch.tensor(pc_arr_pick))
-        uv1 = torch.matmul(torch.tensor(rect), m1)
+        uv1 = torch.matmul(torch.tensor(PROJ), m1)
         uv1[:2, :] /= uv1[2, :]
 
         center_3d = []
@@ -222,11 +201,19 @@ class TransformFuse:
                 cam_position = center_3d[i][:3]
                 # Calculate the center of the radar track shape by averaging the points
                 track_shape = rad_det.track_shape.points
-                rad_position = np.array([
-                    np.mean([point.x for point in track_shape]),  # Averaging x-coordinates
-                    np.mean([point.y for point in track_shape]),  # Averaging y-coordinates
-                    np.mean([point.z for point in track_shape])   # Averaging z-coordinates
-                ])
+                rad_position = np.array(
+                    [
+                        np.mean(
+                            [point.x for point in track_shape]
+                        ),  # Averaging x-coordinates
+                        np.mean(
+                            [point.y for point in track_shape]
+                        ),  # Averaging y-coordinates
+                        np.mean(
+                            [point.z for point in track_shape]
+                        ),  # Averaging z-coordinates
+                    ]
+                )
                 distance = np.linalg.norm(cam_position - rad_position)
                 if rad_position[0] > 75 and distance < close_distance_threshold:
                     matched_pairs.append((i, j))
@@ -261,18 +248,30 @@ class TransformFuse:
         for i, obj in enumerate(msgRadar.tracks):  # radar detections
             if i not in [g for f, g in matched_pairs]:
                 # Calculate the center of the radar track shape by averaging the points
-                track_shape = obj.track_shape.points  # Assuming 'track_shape' is part of 'obj'
-                rad_position = np.array([
-                    np.mean([point.x for point in track_shape]),  # Averaging x-coordinates
-                    np.mean([point.y for point in track_shape]),  # Averaging y-coordinates
-                    np.mean([point.z for point in track_shape])   # Averaging z-coordinates
-                ])
-                
+                track_shape = (
+                    obj.track_shape.points
+                )  # Assuming 'track_shape' is part of 'obj'
+                rad_position = np.array(
+                    [
+                        np.mean(
+                            [point.x for point in track_shape]
+                        ),  # Averaging x-coordinates
+                        np.mean(
+                            [point.y for point in track_shape]
+                        ),  # Averaging y-coordinates
+                        np.mean(
+                            [point.z for point in track_shape]
+                        ),  # Averaging z-coordinates
+                    ]
+                )
+
                 # Apply radar limit check based on x-coordinate of the radar position
                 if rad_position[0] > radar_limit:
                     bbox = BoundingBox()
                     bbox.header = msgRadar.header
-                    bbox.pose.position.x = rad_position[0]  # Using the computed radar position
+                    bbox.pose.position.x = rad_position[
+                        0
+                    ]  # Using the computed radar position
                     bbox.pose.position.y = rad_position[1]
                     bbox.pose.position.z = rad_position[2]
                     bbox.dimensions.x = 1.5  # Adjust as needed

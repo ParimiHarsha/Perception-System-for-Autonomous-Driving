@@ -33,8 +33,6 @@ from typing import List
 
 import cv2
 import numpy as np
-
-np.float = np.float64
 import ros_numpy
 import rospy
 import torch
@@ -44,6 +42,7 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import Header
 from ultralytics import YOLO
 
+from src.configs import CAMERA_TOPIC, YOLO_BBOX_TOPIC, YOLO_IMAGE_TOPIC
 from yolov9_ros.msg import Bbox, BboxList
 
 # Initialize CUDA device early
@@ -80,13 +79,15 @@ class Detect:
         self.model.conf = 0.5
         self.names: List[str] = self.model.names
         self.image_sub = rospy.Subscriber(
-            "/resized/camera_fl/image_color",
+            CAMERA_TOPIC,
             Image,
             self.camera_callback,
             queue_size=1,
         )
-        self.image_pub = rospy.Publisher("yolov9/published_image", Image, queue_size=1)
-        self.bboxInfo_pub = rospy.Publisher("yolov9/bboxInfo", BboxList, queue_size=1)
+        self.image_pub = rospy.Publisher(YOLO_IMAGE_TOPIC, Image, queue_size=1)
+        self.bboxInfo_pub = rospy.Publisher(
+            YOLO_BBOX_TOPIC, BboxList, queue_size=1
+        )
 
         # Initialize VideoWriter if write_file is True
         if write_file:

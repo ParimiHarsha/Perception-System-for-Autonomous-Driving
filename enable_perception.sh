@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Export PYTHONPATH for custom directories
+echo "Setting PYTHONPATH..."
+export PYTHONPATH=/home/dev/Documents/Autonomous-Driving-Perception-System:$PYTHONPATH
+
 # Source the ROS workspace
 echo "Sourcing the ROS workspace"
 source devel/setup.bash
@@ -41,6 +45,4 @@ gnome-terminal --tab -- bash -c 'source /home/dev/miniconda3/etc/profile.d/conda
 # Wait for all processes to finish
 wait
 
-# Close the current terminal tab 
-echo "Closing the current tab..."
-kill -9 $PPID
+echo "Perception system has been successfully enabled."

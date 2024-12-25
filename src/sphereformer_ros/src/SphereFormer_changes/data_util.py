@@ -7,11 +7,10 @@ from torch_scatter import scatter_mean
 def collate_fn_limit(batch, max_batch_points, logger):
     coord, xyz, feat, label = list(zip(*batch))
     offset, count = [], 0
-    
+
     new_coord, new_xyz, new_feat, new_label = [], [], [], []
     k = 0
     for i, item in enumerate(xyz):
-
         count += item.shape[0]
         if count > max_batch_points:
             break
@@ -26,10 +25,20 @@ def collate_fn_limit(batch, max_batch_points, logger):
     if logger is not None and k < len(batch):
         s = sum([x.shape[0] for x in xyz])
         s_now = sum([x.shape[0] for x in new_xyz[:k]])
-        logger.warning("batch_size shortened from {} to {}, points from {} to {}".format(len(batch), k, s, s_now))
+        logger.warning(
+            "batch_size shortened from {} to {}, points from {} to {}".format(
+                len(batch), k, s, s_now
+            )
+        )
 
-    return torch.cat(new_coord[:k]), torch.cat(new_xyz[:k]), torch.cat(new_feat[:k]), torch.cat(new_label[:k]), torch.IntTensor(offset[:k])
-    
+    return (
+        torch.cat(new_coord[:k]),
+        torch.cat(new_xyz[:k]),
+        torch.cat(new_feat[:k]),
+        torch.cat(new_label[:k]),
+        torch.IntTensor(offset[:k]),
+    )
+
 
 def collation_fn_voxelmean(batch):
     """
@@ -55,6 +64,7 @@ def collation_fn_voxelmean(batch):
     inds_recons = torch.cat(inds_recons)
 
     return coords, xyz, feats, labels, offset, inds_recons
+
 
 def collation_fn_voxelmean_tta(batch_list):
     """
@@ -88,20 +98,32 @@ def collation_fn_voxelmean_tta(batch_list):
 
     return samples
 
-def data_prepare(coord, feat, label, split='train', voxel_size=np.array([0.1, 0.1, 0.1]), voxel_max=None, transform=None, xyz_norm=False):
+
+def data_prepare(
+    coord,
+    feat,
+    label,
+    split="train",
+    voxel_size=np.array([0.1, 0.1, 0.1]),
+    voxel_max=None,
+    transform=None,
+    xyz_norm=False,
+):
     if transform:
         # coord, feat, label = transform(coord, feat, label)
         coord, feat = transform(coord, feat)
     coord_min = np.min(coord, 0)
     # coord -= coord_min
     coord_norm = coord - coord_min
-    if split == 'train':
+    if split == "train":
         uniq_idx = voxelize(coord_norm, voxel_size)
         coord_voxel = np.floor(coord_norm[uniq_idx] / np.array(voxel_size))
         coord, feat, label = coord[uniq_idx], feat[uniq_idx], label[uniq_idx]
         if voxel_max and label.shape[0] > voxel_max:
             init_idx = np.random.randint(label.shape[0])
-            crop_idx = np.argsort(np.sum(np.square(coord - coord[init_idx]), 1))[:voxel_max]
+            crop_idx = np.argsort(np.sum(np.square(coord - coord[init_idx]), 1))[
+                :voxel_max
+            ]
             coord, feat, label = coord[crop_idx], feat[crop_idx], label[crop_idx]
             coord_voxel = coord_voxel[crop_idx]
     else:
@@ -113,8 +135,10 @@ def data_prepare(coord, feat, label, split='train', voxel_size=np.array([0.1, 0.
 
     coord = torch.FloatTensor(coord)
     feat = torch.FloatTensor(feat)
-    label = torch.LongTensor(label.astype(np.int64))  # Convert label to int64 before converting to tensor
-    if split == 'train':
+    label = torch.LongTensor(
+        label.astype(np.int64)
+    )  # Convert label to int64 before converting to tensor
+    if split == "train":
         coord_voxel = torch.LongTensor(coord_voxel)
         return coord_voxel, coord, feat, label
     else:

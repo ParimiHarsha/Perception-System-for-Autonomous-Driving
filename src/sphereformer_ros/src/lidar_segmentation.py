@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import os
 import struct
-import time
 from functools import wraps
 
 import numpy as np
@@ -20,6 +19,8 @@ from SphereFormer.util import config
 from SphereFormer_changes.unet_spherical_transformer import Semantic as Model
 from visualization_msgs.msg import Marker, MarkerArray
 
+from src.configs import LIDAR_BBOX_TOPIC, LIDAR_SEGMENTATION_TOPIC, LIDAR_TOPIC
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(
     SCRIPT_DIR,
@@ -35,7 +36,7 @@ torch.cuda.set_per_process_memory_fraction(0.3, device=torch.device("cuda:0"))
 def timer(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        start_time = rospy.Time.now().to_sec()  # time.time()
+        start_time = rospy.Time.now().to_sec()
         result = func(*args, **kwargs)
         end_time = rospy.Time.now().to_sec()
         print(f"{func.__name__} executed in {end_time - start_time:.4f} seconds")
@@ -59,12 +60,12 @@ class PointCloudInference:
         self.current_marker_ids = set()
 
         # ROS publishers and subscribers
-        self.pub = rospy.Publisher("/colored_points", PointCloud2, queue_size=1)
+        self.pub = rospy.Publisher(LIDAR_SEGMENTATION_TOPIC, PointCloud2, queue_size=1)
         self.bounding_box_pub = rospy.Publisher(
-            "/bounding_boxes", MarkerArray, queue_size=1
+            LIDAR_BBOX_TOPIC, MarkerArray, queue_size=1
         )
         rospy.Subscriber(
-            "/lidar_tc/velodyne_points",
+            LIDAR_TOPIC,
             PointCloud2,
             self.ros_callback,
             queue_size=1,
@@ -186,10 +187,7 @@ class PointCloudInference:
         sinput = spconv.SparseConvTensor(feat, coord.int(), spatial_shape, 1)
         assert batch.shape[0] == feat.shape[0]
         with torch.no_grad():
-            # with torch.cuda.amp.autocast():
-            a = time.time()
             output = model(sinput, xyz, batch)
-            print("time for model", time.time() - a)
             output = output[inds_reverse, :]
             output = output.max(1)[1]
         points = np.zeros(
