@@ -28,6 +28,9 @@ RIGHT_LANE_TOPIC = "/lane_detection/current_lane_right_boundary"
 LEFT_LANE_BOUNDARY_TOPIC = "/Left_Line3dPoints"
 RIGHT_LANE_BOUNDARY_TOPIC = "/Right_Line3dPoints"
 
+# 2D-3D Transformation
+LIDAR_2D_PROJ_TOPIC = '/lidar_2d_projection'
+
 # Calibration Parameters
 # Camera intrinsic parameters
 PROJ = np.array(
