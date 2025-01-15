@@ -1,117 +1,96 @@
 # Perception System for Autonomous Driving
 
-https://github.com/user-attachments/assets/e6f0876c-9d8a-4220-9c69-085cf4ed74b0
+![Demo Video](https://github.com/user-attachments/assets/e6f0876c-9d8a-4220-9c69-085cf4ed74b0)
 
+A ready-to-use system for autonomous driving, featuring YOLOv9 for object detection, SAMv2 for road segmentation, Ultrafast lane detection, and Sphereformer LiDAR segmentation. Fully integrated with ROS for seamless deployment in robotic systems. Ideal for developers and researchers focused on autonomous vehicle technologies.
 
-A ready-to-use system for autonomous driving, featuring YOLOv9 for object detection and SAMv2 for road segmentation. Fully integrated with ROS for seamless deployment in robotic systems. Ideal for developers and researchers focused on autonomous vehicle technologies.
+---
 
 ## Features
+- **Object Detection**: Utilizes YOLOv9 for real-time, accurate object detection.
+- **Road Segmentation**: Employs SAMv2 for robust and precise road segmentation.
+- **Lane Detection**: Implements Ultrafast lane detection for high-speed lane recognition.
+- **LiDAR Segmentation**: Uses Sphereformer for advanced 3D LiDAR-based segmentation.
+- **ROS Integration**: Fully integrated with ROS for seamless deployment and easy integration into robotic systems.
 
-- **Object Detection:** Utilizes YOLOv9 for real-time, accurate object detection.
-- **Road Segmentation:** Employs SAMv2 for robust and precise road segmentation.
-- **ROS Integration:** Fully integrated with ROS for seamless deployment and easy integration into robotic systems.
+---
 
 ## Installation
 
 ### Prerequisites
 
 Before installing the Autonomous Driving Perception System, ensure the following prerequisites are met:
+- **ROS**: Make sure ROS-Noetic is installed on your system. For installation instructions, visit the [ROS Wiki](http://wiki.ros.org/ROS/Installation).
+- **Python**: Python 3.10 or later is required.
+- **Dependencies**: All necessary Python libraries and dependencies are listed in the corresponding `environment.yaml` files.
 
-- **ROS:** Make sure ROS-Noetic is installed on your system. For installation instructions, visit the [ROS Wiki](http://wiki.ros.org/ROS/
-Installation).
-- **Python:** Python 3.10 or later is required.
-- **Dependencies:** All necessary Python libraries and dependencies are listed in the `environment.yaml` file.
-
-## Installation
-
-### Clone the Repository
-
-Start by cloning the repository to your local machine:
-
+### Clone the Repository with Submodules
 ```bash
-git clone https://github.com/ParimiHarsha/Autonomous-Driving-Perception-System.git
-cd Perception-System-for-Autonomous-Driving
+git clone --recursive https://github.com/ParimiHarsha/Autonomous-Driving-Perception-System.git
+cd Autonomous-Driving-Perception-System
 ```
 
-### Build the ROS Workspace: Use catkin to build the workspace and source it
-
+### Build the ROS Workspace
 ```bash
 catkin build
 source devel/setup.bash
 ```
 
-### Navigate to the Road Segmentation Directory
+### Create and Activate Environments
+Each perception module requires its own environment:
 
+#### SAMv2 Installation
 ```bash
-cd src/road_segmentation/src
-```
-
-#### Clone and install the SAMv2
-
-```bash
-conda create -n "sam" python=3.10
+conda create -n sam python=3.10
 conda activate sam
-git clone https://github.com/facebookresearch/segment-anything-2.git
-cd segment-anything-2 & pip install -e .
+cd src/road_segmentation/src/segment-anything-2
+pip install -e .
+cd checkpoints && ./download_ckpts.sh
 ```
 
-#### Download Checkpoints
-
+#### YOLOv9 Installation
 ```bash
-cd checkpoints && \
-./download_ckpts.sh && \
-cd ..
+conda env create -f src/yolov9ros/src/environment.yaml
+conda activate yolo_env
 ```
-
-Refer to the [SAMv2 github](https://github.com/facebookresearch/segment-anything-2) README file for more details/issues.
-
-### Return to the Top-Level Directory
-
-```bash
-cd ../../..
-```
-### Download the Trained YOLOv9 model
+##### Download the Trained YOLOv9 model
 
 ```bash
 cd src/yolov9ros/
 ```
-Download the [trained model](https://drive.google.com/file/d/1UAX-7jSXQJcyRdumn8iXmwjfJxxyC9Tw/view?usp=sharing) here. And store it in yolov9ros folder
+Download the [trained model](https://drive.google.com/file/d/1UAX-7jSXQJcyRdumn8iXmwjfJxxyC9Tw/view?usp=sharing) here. And save it in yolov9_ros folder
 
-### Run the required Road Segmentation Scripts
+#### Ultrafast Lane Detection and Sphereformer
+Follow the respective `README.md` files in their directories for installation details.
 
+
+## Running the Perception System
+
+The entire perception stack can be launched with a single command:
+
+### Enable Perception
 ```bash
-python src/road_segmentation/src/SAMv2Ros.py
+./enable_perception.bash
 ```
 
+### Disable Perception
 ```bash
-python src/road_segmentation/src/road_segmentation_3d.py
+./disable_perception.bash
 ```
 
-### Run the required Object Detection Scipts
+These scripts handle launching and shutting down all perception nodes, including object detection, road segmentation, lane detection, and LiDAR segmentation.
 
-```bash
-conda env create -f src/yolov9ros/src/environment.yaml
-conda activate perception_env
-```
-
-```bash
-python src/yolov9ros/src/yolo_detection_node.py
-```
-
-```bash
-python src/yolov9ros/src/transform_and_fuse.py
-```
-
-If any additional packages are required during this process, install them as prompted.
+---
 
 ## Usage
+Once installed, the system can be deployed within a ROS environment. The `enable_perception.bash` script will launch all perception nodes, while individual components can be run manually using their respective launch files and scripts. Ensure the appropriate topics are correctly published and subscribed to within your ROS setup.
 
-Once the installation is complete, the system can be deployed within a ROS environment. Use the provided scripts to start the perception modules for object detection and road segmentation. Ensure your ROS nodes are correctly configured and that the necessary topics are being published and subscribed to within your ROS ecosystem.
+---
 
 ## License
+This project is licensed under the MIT License. See the `LICENSE` file for more details.
 
-This project is licensed under the MIT License. See the LICENSE file for more details.
+---
 
 ## Contact
-
-For any questions, issues, or suggestions, please open an issue on the GitHub repository or contact the repository owner.
+For questions, issues, or suggestions, please open an issue on the GitHub repository or contact the repository owner.
